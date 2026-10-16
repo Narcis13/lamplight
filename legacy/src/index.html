@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lamplight: No-Limit Hold'em</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600;1,9..144,700&display=swap" rel="stylesheet">
+<style>
+/*__STYLES__*/
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5v4.5" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M3.5 15a8.5 8.5 0 0 1 17 0z" fill="currentColor"/><path d="M9.5 18a2.5 2.5 0 0 0 5 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg>
+      <span class="wordmark">Lamplight</span>
+    </div>
+    <div class="table-info">
+      <span class="ti-game">No-Limit Hold'em, 6-max</span>
+      <span class="ti-stakes">Blinds <b>$1/$2</b></span>
+      <span class="ti-hand">Hand <b id="handNo">0</b></span>
+      <span class="session">Session <b id="sessionNet">$0</b></span>
+    </div>
+    <nav class="tools" aria-label="Table tools">
+      <button class="tool" id="unitsBtn" aria-pressed="false"><b class="num">BB</b></button>
+      <button class="tool" id="pauseBtn" aria-pressed="false">
+        <svg viewBox="0 0 24 24" class="i-pause" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>
+        <svg viewBox="0 0 24 24" class="i-play" aria-hidden="true" style="display:none"><path d="M8 5l11 7-11 7z"/></svg>
+        <span class="lbl">Pause</span>
+      </button>
+      <button class="tool" id="logBtn" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+        <span class="lbl">Hand log</span>
+      </button>
+      <button class="tool" id="statsBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+        <span class="lbl">Stats</span>
+      </button>
+      <button class="tool" id="settingsBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h3M11 17h9"/><circle cx="15.5" cy="7" r="2.3"/><circle cx="8.5" cy="17" r="2.3"/></svg>
+        <span class="lbl">Settings</span>
+      </button>
+      <button class="tool" id="leaveBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></svg>
+        <span class="lbl">Leave</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="stage-wrap" id="stageWrap">
+    <div class="stage" id="stage" data-layout="land">
+      <div class="table" id="table">
+        <div class="rail"></div>
+        <div class="felt"></div>
+        <div class="felt-line"></div>
+        <div class="felt-mark" aria-hidden="true">Lamplight</div>
+      </div>
+      <div class="board" id="board" aria-label="Board"></div>
+      <div class="pot empty" id="pot" aria-live="polite"></div>
+      <div class="dealer-btn" id="dealerBtn" aria-hidden="true" hidden>D</div>
+      <div class="center-msg" id="centerMsg" role="status"><div class="m1"></div><div class="m2"></div></div>
+    </div>
+  </main>
+
+  <footer class="dock" id="dock" data-mode="idle">
+    <div class="hand-info">
+      <div class="hi-title" id="hiTitle">Pull up a chair</div>
+      <div class="hi-sub" id="hiSub">Six-handed No-Limit Hold'em, $1/$2 blinds</div>
+      <div class="odds" id="odds" hidden><div class="odds-bar"><i></i></div><span class="num"></span></div>
+    </div>
+    <div class="controls">
+      <div class="turn-ui">
+        <div class="sizing" id="sizing">
+          <div class="presets" id="presets"></div>
+          <div class="slider-row">
+            <button class="step" id="minus" aria-label="Smaller bet">−</button>
+            <input type="range" id="slider" aria-label="Bet size">
+            <button class="step" id="plus" aria-label="Bigger bet">+</button>
+            <input class="raise-input" id="raiseInput" type="text" inputmode="decimal" aria-label="Bet amount">
+          </div>
+        </div>
+        <div class="acts">
+          <button class="act fold" id="foldBtn"><span class="a-l">Fold</span><span class="a-v"></span><kbd>F</kbd></button>
+          <button class="act call" id="callBtn"><span class="a-l">Call</span><span class="a-v"></span><kbd>C</kbd></button>
+          <button class="act raise" id="raiseBtn"><span class="a-l">Raise to</span><span class="a-v"></span><kbd>R</kbd></button>
+        </div>
+      </div>
+      <div class="pre-ui">
+        <button class="pre" id="preFold" aria-pressed="false">Check / Fold</button>
+        <button class="pre" id="preCall" aria-pressed="false">Call any</button>
+      </div>
+      <div class="idle-ui" id="idleMsg" aria-live="polite">Take a seat to begin</div>
+    </div>
+  </footer>
+</div>
+
+<aside class="drawer" id="drawer" aria-label="Hand log and stats" inert>
+  <header>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="log" aria-selected="true">Hand log</button>
+      <button class="tab" role="tab" data-tab="stats" aria-selected="false">Table stats</button>
+    </div>
+    <button class="tool close" id="drawerClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<div class="modal" id="startModal" role="dialog" aria-modal="true" aria-labelledby="startTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="startTitle">Pull up a chair</h2>
+    <p class="lede">Six-handed No-Limit Hold'em at $1/$2. Five regulars are already seated, each with their own appetite for risk. Hover or tap a player at the table to size them up.</p>
+    <div class="field-row">
+      <div class="field"><label for="nameInput">Your name</label><input id="nameInput" maxlength="16" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label id="buyinLbl">Buy-in</label>
+        <div class="seg" id="buyinSeg" role="group" aria-labelledby="buyinLbl">
+          <button data-v="50">50 BB</button><button data-v="100">100 BB</button><button data-v="200">200 BB</button>
+        </div>
+      </div>
+    </div>
+    <h3>At the table</h3>
+    <div class="lineup" id="lineup"></div>
+    <div class="sheet-actions">
+      <button class="btn primary" id="startBtn">Take a seat</button>
+      <span class="keys-hint"><kbd>F</kbd> fold&ensp;<kbd>C</kbd> check or call&ensp;<kbd>R</kbd> raise&ensp;<kbd>↑</kbd><kbd>↓</kbd> bet size&ensp;<kbd>P</kbd> pause</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="setTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="setTitle">Table settings</h2>
+    <h3>Game speed</h3>
+    <div class="seg" data-setting="speed"><button data-v="relaxed">Relaxed</button><button data-v="normal">Normal</button><button data-v="turbo">Turbo</button></div>
+    <h3>Theme</h3>
+    <div class="seg" data-setting="theme"><button data-v="auto">Match system</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div>
+    <h3>Display</h3>
+    <div class="setting"><div><b>Win odds</b><span>Your chance to win against random hands, updated every street</span></div><button class="switch" data-setting="showOdds" aria-label="Win odds"></button></div>
+    <div class="setting"><div><b>Player types</b><span>Label each bot with its playing style</span></div><button class="switch" data-setting="showTags" aria-label="Player types"></button></div>
+    <div class="setting"><div><b>HUD stats</b><span>VPIP and PFR under each bot once it has played five hands</span></div><button class="switch" data-setting="showHud" aria-label="HUD stats"></button></div>
+    <div class="setting"><div><b>Four-color deck</b><span>Blue diamonds and green clubs</span></div><button class="switch" data-setting="fourColor" aria-label="Four-color deck"></button></div>
+    <div class="setting"><div><b>Sound</b><span>Cards, chips and a small fanfare when you win</span></div><button class="switch" data-setting="sound" aria-label="Sound"></button></div>
+    <div class="sheet-actions"><button class="btn primary" data-close>Done</button></div>
+  </div>
+</div>
+
+<div class="modal" id="rebuyModal" role="dialog" aria-modal="true" aria-labelledby="rebuyTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="rebuyTitle">Out of chips</h2>
+    <p class="lede" id="rebuyText"></p>
+    <div class="sheet-actions">
+      <button class="btn primary" id="rebuyYes">Rebuy</button>
+      <button class="btn" id="rebuyNo">Cash out</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="summaryModal" role="dialog" aria-modal="true" aria-labelledby="summaryTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="summaryTitle">Session summary</h2>
+    <p class="lede" id="summaryLede"></p>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="sheet-actions">
+      <button class="btn primary" id="summaryKeep">Back to the table</button>
+      <button class="btn" id="summaryNew">New session</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+/*__SCRIPT__*/
+</script>
+</body>
+</html>

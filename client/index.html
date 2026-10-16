@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lamplight: No-Limit Hold'em</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600;1,9..144,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./screens.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5v4.5" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M3.5 15a8.5 8.5 0 0 1 17 0z" fill="currentColor"/><path d="M9.5 18a2.5 2.5 0 0 0 5 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg>
+      <span class="wordmark">Lamplight</span>
+    </div>
+    <div class="table-info">
+      <span class="ti-name" id="tableName">Lobby</span>
+      <span class="ti-game">No-Limit Hold'em, 6-max</span>
+      <span class="ti-stakes" id="tiStakes">Blinds <b>$1/$2</b></span>
+      <span class="ti-hand">Hand <b id="handNo">0</b></span>
+      <span class="session"><span id="sessionLbl">Session</span> <b id="sessionNet">$0</b></span>
+      <span class="conn" id="conn">Online</span>
+    </div>
+    <nav class="tools" aria-label="Table tools">
+      <button class="wallet-chip" id="walletChip" hidden title="Your bankroll"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/></svg><b class="num">$0</b></button>
+      <button class="tool" id="unitsBtn" aria-pressed="false"><b class="num">BB</b></button>
+      <button class="tool" id="logBtn" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+        <span class="lbl">Hand log</span>
+      </button>
+      <button class="tool" id="statsBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+        <span class="lbl">Stats</span>
+      </button>
+      <button class="tool" id="settingsBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h3M11 17h9"/><circle cx="15.5" cy="7" r="2.3"/><circle cx="8.5" cy="17" r="2.3"/></svg>
+        <span class="lbl">Settings</span>
+      </button>
+      <button class="tool" id="leaveBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></svg>
+        <span class="lbl">Lobby</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="stage-wrap" id="stageWrap">
+    <div class="stage" id="stage" data-layout="land">
+      <div class="table" id="table">
+        <div class="rail"></div>
+        <div class="felt"></div>
+        <div class="felt-line"></div>
+        <div class="felt-mark" aria-hidden="true">Lamplight</div>
+      </div>
+      <div class="board" id="board" aria-label="Board"></div>
+      <div class="board board2" id="board2" aria-label="Second board"></div>
+      <div class="pot empty" id="pot" aria-live="polite"></div>
+      <div class="dealer-btn" id="dealerBtn" aria-hidden="true" hidden>D</div>
+      <div class="center-msg" id="centerMsg" role="status"><div class="m1"></div><div class="m2"></div></div>
+    </div>
+    <button class="emote-btn" id="emoteBtn" hidden aria-label="React" title="React">😀</button>
+    <div class="emotes" id="emotes" role="menu" aria-label="Reactions">
+      <button data-k="👍">👍</button><button data-k="😂">😂</button><button data-k="😮">😮</button><button data-k="😡">😡</button><button data-k="🔥">🔥</button>
+      <button data-k="🐟">🐟</button><button data-k="🙏">🙏</button><button data-k="👏">👏</button><button data-k="🤔">🤔</button><button data-k="😎">😎</button>
+    </div>
+  </main>
+
+  <footer class="dock" id="dock" data-mode="idle">
+    <div class="hand-info">
+      <div class="hi-title" id="hiTitle">Pull up a chair</div>
+      <div class="hi-sub" id="hiSub">Six-handed No-Limit Hold'em, $1/$2 blinds</div>
+      <div class="odds" id="odds" hidden><div class="odds-bar"><i></i><em id="oddsNeed" hidden></em></div><span class="num"></span></div>
+      <div class="coach" id="coach" hidden></div>
+    </div>
+    <div class="controls">
+      <div class="turn-ui">
+        <div class="sizing" id="sizing">
+          <div class="presets" id="presets"></div>
+          <div class="slider-row">
+            <button class="step" id="minus" aria-label="Smaller bet">−</button>
+            <input type="range" id="slider" aria-label="Bet size">
+            <button class="step" id="plus" aria-label="Bigger bet">+</button>
+            <input class="raise-input" id="raiseInput" type="text" inputmode="decimal" aria-label="Bet amount">
+          </div>
+        </div>
+        <div class="clock" id="clock"></div>
+        <div class="acts">
+          <button class="act fold" id="foldBtn"><span class="a-l">Fold</span><span class="a-v"></span><kbd>F</kbd></button>
+          <button class="act call" id="callBtn"><span class="a-l">Call</span><span class="a-v"></span><kbd>C</kbd></button>
+          <button class="act raise" id="raiseBtn"><span class="a-l">Raise to</span><span class="a-v"></span><kbd>R</kbd></button>
+        </div>
+      </div>
+      <div class="pre-ui">
+        <button class="pre" id="preFold" aria-pressed="false">Check / Fold</button>
+        <button class="pre" id="preCall" aria-pressed="false">Call any</button>
+      </div>
+      <div class="idle-ui">
+        <div id="idleMsg" aria-live="polite">Pick a table in the lobby</div>
+        <div class="rit-ask" id="ritAsk" hidden role="group" aria-label="Run it twice?">
+          <div class="rit-q"><b>Run it twice?</b><span>Two boards, half the pot on each. Everyone has to agree.</span></div>
+          <div class="rit-btns"><button class="btn" id="ritNo">Once</button><button class="btn primary" id="ritYes">Twice</button></div>
+          <div class="rit-clock"><i></i></div>
+        </div>
+        <div class="idle-actions">
+          <button class="btn primary" id="sitBtn" hidden>Sit in</button>
+          <button class="btn primary" id="startBtn" hidden>Start now</button>
+          <button class="btn" id="showBtn" hidden>Show cards</button>
+          <button class="btn primary" id="backBtn" hidden>I'm back</button>
+          <button class="btn" id="sitOutBtn" hidden>Sit out</button>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<aside class="drawer" id="drawer" aria-label="Hand log and stats" inert>
+  <header>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="log" aria-selected="true">Hand log</button>
+      <button class="tab" role="tab" data-tab="stats" aria-selected="false">Table stats</button>
+      <button class="tab" role="tab" data-tab="chat" aria-selected="false">Chat</button>
+    </div>
+    <button class="tool close" id="drawerClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="setTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="setTitle">Settings</h2>
+    <h3>Theme</h3>
+    <div class="seg" data-setting="theme"><button data-v="auto">Match system</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div>
+    <h3>Run it twice</h3>
+    <div class="seg" data-setting="rit"><button data-v="ask">Ask me</button><button data-v="always">Always</button><button data-v="never">Never</button></div>
+    <h3>Display</h3>
+    <div class="setting"><div><b>Win odds</b><span>Your chance to win against random hands, updated every street</span></div><button class="switch" data-setting="showOdds" aria-label="Win odds"></button></div>
+    <div class="setting"><div><b>Player types</b><span>Label each bot with its playing style</span></div><button class="switch" data-setting="showTags" aria-label="Player types"></button></div>
+    <div class="setting"><div><b>HUD stats</b><span>VPIP and PFR under each bot once it has played five hands</span></div><button class="switch" data-setting="showHud" aria-label="HUD stats"></button></div>
+    <div class="setting"><div><b>Pot odds coach</b><span>When you face a bet, shows the equity you need to call and how your hand measures up</span></div><button class="switch" data-setting="coach" aria-label="Pot odds coach"></button></div>
+    <div class="setting"><div><b>Chat bubbles</b><span>Table talk appears over the seat of whoever said it</span></div><button class="switch" data-setting="chatBubbles" aria-label="Chat bubbles"></button></div>
+    <div class="setting"><div><b>Celebrations</b><span>Confetti for big hands, achievements and tournament wins</span></div><button class="switch" data-setting="celebrate" aria-label="Celebrations"></button></div>
+    <div class="setting"><div><b>Four-color deck</b><span>Blue diamonds and green clubs</span></div><button class="switch" data-setting="fourColor" aria-label="Four-color deck"></button></div>
+    <div class="setting"><div><b>Sound</b><span>Cards, chips and a small fanfare when you win</span></div><button class="switch" data-setting="sound" aria-label="Sound"></button></div>
+    <div class="sheet-actions"><button class="btn primary" data-close>Done</button></div>
+  </div>
+</div>
+
+<div class="modal" id="rebuyModal" role="dialog" aria-modal="true" aria-labelledby="rebuyTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="rebuyTitle">Out of chips</h2>
+    <p class="lede" id="rebuyText"></p>
+    <div class="sheet-actions">
+      <button class="btn primary" id="rebuyYes">Rebuy</button>
+      <button class="btn" id="rebuyNo">Watch for now</button>
+      <button class="btn" id="rebuyLeave">Back to lobby</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="summaryModal" role="dialog" aria-modal="true" aria-labelledby="summaryTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="summaryTitle">Session summary</h2>
+    <p class="lede" id="summaryLede"></p>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="sheet-actions">
+      <button class="btn primary" id="summaryKeep">Back to the table</button>
+      <button class="btn" id="summaryNew">Leave for the lobby</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="tourneyModal" role="dialog" aria-modal="true" aria-labelledby="tourneyTitle" inert aria-hidden="true">
+  <div class="sheet">
+    <h2 id="tourneyTitle">Tournament</h2>
+    <p class="lede" id="tourneyLede"></p>
+    <ol class="t-standings" id="tourneyList"></ol>
+    <div class="sheet-actions">
+      <button class="btn primary" id="tourneyAgain" hidden>Play another</button>
+      <button class="btn" id="tourneyWatch">Keep watching</button>
+      <button class="btn" id="tourneyLobby">Back to lobby</button>
+    </div>
+  </div>
+</div>
+
+<div class="lobby" id="lobby"></div>
+<div id="overlay"></div>
+
+<div class="celebrate" id="celebrate" aria-live="polite"><div class="c1"></div><div class="c2"></div></div>
+<canvas class="confetti" id="confetti" aria-hidden="true"></canvas>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script type="module" src="./main.jsx"></script>
+</body>
+</html>
