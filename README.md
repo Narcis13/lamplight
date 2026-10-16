@@ -1,15 +1,17 @@
-# Lamplight: No-Limit Hold'em 6-max, multiplayer
+# Lamplight: No-Limit Hold'em 6-max and Backgammon, multiplayer
 
 People and bots at the same six-seat tables. Cash games at four stakes, Sit & Go tournaments, a
 play-money bankroll that follows you around, full hand history with a replayer, lifetime stats,
-achievements and a leaderboard. A Bun server runs the game and keeps everything in SQLite.
-Browsers only draw what the server tells them and send back their actions.
+achievements and a leaderboard. Next to the poker room there are backgammon boards: money games by
+the point or matches to N, against a friend or a house bot, from the same lobby and the same bankroll.
+A Bun server runs the games and keeps everything in SQLite. Browsers only draw what the server tells
+them and send back their actions.
 
 ```sh
 bun install
 bun run dev        # http://localhost:3000, hot reload
 bun run start      # production mode, same port (PORT=8080 bun run start to change it)
-bun test           # engine, bots, and end-to-end network tests (real server, scripted players)
+bun test           # poker and backgammon engines, bots, and end-to-end network tests (real server, scripted players)
 ```
 
 ## What's in it
@@ -37,6 +39,31 @@ bun test           # engine, bots, and end-to-end network tests (real server, sc
   capped at twice its starting size.
 - **At the table**: a pot-odds coach, win odds, emote reactions, chat bubbles, showing your cards after
   a hand, and some confetti when you hit something big.
+
+## Backgammon
+
+Switch the lobby's **Play** tab from Texas Hold'em to **Backgammon**.
+
+- **Money games**: a stake per point ($10 to $1,000). You sit down with forty points' worth of chips;
+  each game moves points × cube × stake from the loser to the winner, never more than the loser has in
+  front of them. Gammons count double and backgammons triple.
+- **Matches**: first to 1, 3, 5 or 7 points. Both players put up the entry and the winner takes both.
+  Crawford rule, and a cube that is dead for the leader can't be turned.
+- **The doubling cube**: double before you roll, take or pass when doubled, redoubles up to 64.
+- **Against a friend or a bot**: open a board with *A friend* as the opponent and send the **Link**, or
+  play a house bot (casual, regular or sharp). A bot holding a seat gives it to a person between games
+  (between matches in match play).
+- **Playing**: click a checker, then where it goes, or drag it; a checker can go the whole roll in one
+  move. Double-click plays the bigger die. **Undo** takes back moves until you press **Done** (or turn on
+  *Auto-confirm moves*). Keys: Space rolls or confirms, U undoes, D doubles, T/P take or pass.
+- **Clocks**: 75, 45 or 25 seconds a turn (Relaxed, Normal, Turbo). Run out and the house plays that turn
+  for you; twice in a row sits you out. Drop your connection and the board waits 90 seconds for you,
+  then you forfeit. Leaving mid-game resigns it; leaving mid-match forfeits the match.
+- **Resigning** gives your opponent what the game is worth right now: the cube, doubled for a gammon
+  (nothing borne off yet) or tripled for a backgammon (a checker still on the bar or in their home board).
+  The dialog tells you which before you confirm.
+- Results go to your profile (record, gammons, points, money) and a Backgammon leaderboard, with five
+  achievements of their own.
 
 ## Playing with other people
 
@@ -77,6 +104,10 @@ Ctrl-C cashes everyone out first; if it dies instead, the next start returns esc
 | `shared/engine.js` | Pure logic for both sides: cards, hand evaluator, equity, pots, stakes, tournament schedule, speeds |
 | `shared/profiles.js` | The bot personalities |
 | `shared/achievements.js` | The achievement list (the server awards them, the client draws them) |
+| `shared/backgammon.js` | Backgammon rules for both sides: positions, legal moves (both dice, the larger-die rule, bearing off), turns with undo, gammons |
+| `server/bgtable.js` | A backgammon board: two seats, money and match play, the cube, clocks, reconnects, bankroll moves |
+| `server/bgbot.js` | The backgammon bot: scores every ending a roll allows (race, points, primes, shots) and makes cube decisions |
+| `client/bg.jsx`, `client/bg.css` | The backgammon room: the board (SVG with animated checkers), players, controls, log and chat |
 | `server/game.js` | The authoritative engine: `Game`, `Player`, `HandLog`, and the per-hand record |
 | `server/bots.js` | The bots' brains and the table's reads on every player |
 | `server/table.js` | A table: seats, sockets, shot clock, reconnects, bankroll moves, Sit & Go lifecycle |

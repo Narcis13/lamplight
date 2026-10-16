@@ -24,5 +24,10 @@ export const ACHIEVEMENTS = [
   { key: 'sng_cash', icon: '🎟️', title: 'In the money', desc: 'Finish in the top two of a Sit & Go.', tier: 2 },
   { key: 'sng_win', icon: '🏆', title: 'Champion', desc: 'Win a Sit & Go.', tier: 3 },
   { key: 'high_roller', icon: '💎', title: 'High roller', desc: 'Grow your bankroll to $50,000.', tier: 4 },
+  { key: 'bg_first', icon: '🎲', title: 'Off the board', desc: 'Win a game of backgammon.', tier: 1 },
+  { key: 'bg_gammon', icon: '🌀', title: 'Gammon', desc: 'Bear off all fifteen before your opponent bears off one.', tier: 2 },
+  { key: 'bg_cube', icon: '🧊', title: 'Cube action', desc: 'Win a backgammon game with the cube on 4 or higher.', tier: 2 },
+  { key: 'bg_match', icon: '🏅', title: 'Match point', desc: 'Win a backgammon match.', tier: 2 },
+  { key: 'bg_backgammon', icon: '⚡', title: 'Backgammon!', desc: 'Win with a checker of theirs still on the bar or in your home board.', tier: 3 },
 ];
 export const ACH = Object.fromEntries(ACHIEVEMENTS.map(a => [a.key, a]));

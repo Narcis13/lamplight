@@ -62,6 +62,19 @@ CREATE TABLE IF NOT EXISTS tournament_entries (
   tourney_id INTEGER NOT NULL, player_id TEXT, name TEXT, kind TEXT, place INTEGER, prize INTEGER
 );
 CREATE INDEX IF NOT EXISTS te_player ON tournament_entries (player_id);
+CREATE TABLE IF NOT EXISTS bg_games (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, table_id TEXT, table_name TEXT, mode TEXT, ended_at INTEGER,
+  white_id TEXT, white_name TEXT, black_id TEXT, black_name TEXT, winner INTEGER, points INTEGER, cube INTEGER,
+  kind TEXT, stake INTEGER, amount INTEGER, turns INTEGER
+);
+CREATE INDEX IF NOT EXISTS bg_white ON bg_games (white_id, id DESC);
+CREATE INDEX IF NOT EXISTS bg_black ON bg_games (black_id, id DESC);
+CREATE TABLE IF NOT EXISTS bg_stats (
+  player_id TEXT PRIMARY KEY, name TEXT, games INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0,
+  gammons INTEGER NOT NULL DEFAULT 0, backgammons INTEGER NOT NULL DEFAULT 0, points_won INTEGER NOT NULL DEFAULT 0,
+  points_lost INTEGER NOT NULL DEFAULT 0, net INTEGER NOT NULL DEFAULT 0, matches INTEGER NOT NULL DEFAULT 0,
+  matches_won INTEGER NOT NULL DEFAULT 0
+);
 `;
 
 const json = s => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
@@ -116,9 +129,22 @@ export class DB {
       sngHistory: q(`SELECT t.id, t.name, t.buy_in, t.prize_pool, t.ended_at, e.place, e.prize FROM tournament_entries e
         JOIN tournaments t ON t.id = e.tourney_id WHERE e.player_id = $pid ORDER BY t.id DESC LIMIT 12`),
     };
+    this.q.bgGame = q(`INSERT INTO bg_games (table_id, table_name, mode, ended_at, white_id, white_name, black_id, black_name, winner, points, cube, kind, stake, amount, turns)
+      VALUES ($tid, $tname, $mode, $now, $wid, $wname, $bid, $bname, $winner, $points, $cube, $kind, $stake, $amount, $turns)`);
+    this.q.bgStat = q(`INSERT INTO bg_stats (player_id, name, games, wins, gammons, backgammons, points_won, points_lost, net)
+      VALUES ($id, $name, 1, $win, $gammon, $bg, $won, $lost, $net)
+      ON CONFLICT (player_id) DO UPDATE SET name = excluded.name, games = games + 1, wins = wins + excluded.wins,
+        gammons = gammons + excluded.gammons, backgammons = backgammons + excluded.backgammons,
+        points_won = points_won + excluded.points_won, points_lost = points_lost + excluded.points_lost, net = net + excluded.net`);
+    this.q.bgMatch = q(`INSERT INTO bg_stats (player_id, name, matches, matches_won) VALUES ($id, $name, 1, $won)
+      ON CONFLICT (player_id) DO UPDATE SET name = excluded.name, matches = matches + 1, matches_won = matches_won + excluded.matches_won`);
+    this.q.bgOf = q('SELECT * FROM bg_stats WHERE player_id = $id');
+    this.q.bgRecent = q('SELECT * FROM bg_games WHERE white_id = $id OR black_id = $id ORDER BY id DESC LIMIT 12');
     this.tx = {
       hand: this.db.transaction((rec, meta) => this._recordHand(rec, meta)),
       tourney: this.db.transaction(t => this._recordTournament(t)),
+      bgGame: this.db.transaction(g => this._recordBgGame(g)),
+      bgMatch: this.db.transaction(m => this._recordBgMatch(m)),
     };
   }
   close() { try { this.db.close(); } catch { /* already closed */ } }
@@ -330,6 +356,57 @@ export class DB {
     return { id: tid, unlocked };
   }
 
+  /* ───────────── backgammon ───────────── */
+  /** Saves a finished game. Seats are { id, name, kind } (bots as 'bot:<key>'). Returns unlocked achievements. */
+  recordBgGame(g) { return this.tx.bgGame(g); }
+  _recordBgGame({ tableId, tableName, mode, stake, seats, winner, points, cube, kind, mult, amount, turns }) {
+    const [w, b] = seats;
+    this.q.bgGame.run({
+      tid: tableId, tname: tableName, mode, now: Date.now(), wid: w.id, wname: w.name, bid: b.id, bname: b.name,
+      winner, points, cube, kind, stake, amount, turns,
+    });
+    const unlocked = [];
+    seats.forEach((s, i) => {
+      const won = i === winner, real = kind !== 'drop' && kind !== 'resign' && kind !== 'forfeit';
+      this.q.bgStat.run({
+        id: s.id, name: s.name, win: won ? 1 : 0, gammon: won && real && mult === 2 ? 1 : 0, bg: won && real && mult === 3 ? 1 : 0,
+        won: won ? points : 0, lost: won ? 0 : points, net: mode === 'money' ? (won ? amount : -amount) : 0,
+      });
+      if (!won || s.kind !== 'human') return;
+      const keys = ['bg_first'];
+      if (real && mult === 2) keys.push('bg_gammon');
+      if (real && mult === 3) keys.push('bg_backgammon');
+      if (cube >= 4) keys.push('bg_cube');
+      for (const key of keys) if (this.unlock(s.id, key)) unlocked.push({ pid: s.id, key });
+    });
+    return unlocked;
+  }
+  recordBgMatch(m) { return this.tx.bgMatch(m); }
+  _recordBgMatch({ winner, loser }) {
+    const unlocked = [];
+    if (winner) this.q.bgMatch.run({ id: winner.id, name: winner.name, won: 1 });
+    if (loser) this.q.bgMatch.run({ id: loser.id, name: loser.name, won: 0 });
+    if (winner && winner.kind === 'human' && this.unlock(winner.id, 'bg_match')) unlocked.push({ pid: winner.id, key: 'bg_match' });
+    return unlocked;
+  }
+  /** One player's backgammon record and last few games, or null if they have never played. */
+  bgRecord(id) {
+    const r = this.q.bgOf.get({ id });
+    const recent = this.q.bgRecent.all({ id }).map(g => {
+      const seat = g.white_id === id ? 0 : 1;
+      return {
+        id: g.id, table: g.table_name, at: g.ended_at, mode: g.mode, won: g.winner === seat, points: g.points, cube: g.cube, kind: g.kind,
+        amount: g.mode === 'money' ? (g.winner === seat ? g.amount : -g.amount) : 0, opponent: seat === 0 ? g.black_name : g.white_name,
+      };
+    });
+    if (!r && !recent.length) return null;
+    return {
+      games: r?.games || 0, wins: r?.wins || 0, gammons: r?.gammons || 0, backgammons: r?.backgammons || 0,
+      pointsWon: r?.points_won || 0, pointsLost: r?.points_lost || 0, net: r?.net || 0, matches: r?.matches || 0, matchesWon: r?.matches_won || 0,
+      recent,
+    };
+  }
+
   /* ───────────── profile & leaderboards ───────────── */
   profile(id) {
     const r = this.q.get.get({ id });
@@ -351,7 +428,7 @@ export class DB {
       },
       reads: json(r.reads),
       achievements: this.q.achOf.all({ pid: id }),
-      graph, recent, sng: this.q.sngHistory.all({ pid: id }),
+      graph, recent, sng: this.q.sngHistory.all({ pid: id }), bg: this.bgRecord(id),
     };
   }
   leaderboard() {
@@ -364,7 +441,10 @@ export class DB {
       pots: top('biggest_pot DESC', 'biggest_pot > 0'),
       sng: top('sng_won DESC, sng_played ASC', 'sng_played > 0'),
       bots: this.db.query('SELECT key, hands, net, pots_won, biggest_pot, busted, sng_won FROM bots WHERE hands > 0 ORDER BY net DESC').all(),
-      totals: this.db.query('SELECT (SELECT COUNT(*) FROM hands) AS hands, (SELECT COUNT(*) FROM players) AS players, (SELECT COUNT(*) FROM tournaments) AS tournaments').get(),
+      bg: this.db.query(`SELECT s.player_id AS id, COALESCE(p.name, s.name) AS name, s.games, s.wins, s.gammons, s.backgammons, s.net, s.matches, s.matches_won,
+        CASE WHEN s.player_id LIKE 'bot:%' THEN substr(s.player_id, 5) ELSE NULL END AS bot
+        FROM bg_stats s LEFT JOIN players p ON p.id = s.player_id WHERE s.games > 0 ORDER BY s.wins DESC, s.games ASC LIMIT 10`).all(),
+      totals: this.db.query('SELECT (SELECT COUNT(*) FROM hands) AS hands, (SELECT COUNT(*) FROM players) AS players, (SELECT COUNT(*) FROM tournaments) AS tournaments, (SELECT COUNT(*) FROM bg_games) AS bgGames').get(),
     };
   }
 }

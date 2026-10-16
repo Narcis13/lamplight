@@ -59,9 +59,11 @@ const Store = {
 };
 
 export class App {
-  constructor({ renderLobby, renderOverlay }) {
+  constructor({ renderLobby, renderOverlay, renderBg }) {
     this.renderLobbyUI = renderLobby;
     this.renderOverlayUI = renderOverlay;
+    this.renderBgUI = renderBg;
+    this.bg = null; // the backgammon board we're at, if any (poker tables use G and tableId)
     this.settings = Store.load();
     Fmt.units = this.settings.units; Fmt.bb = 2;
     this.sfx = new SFX(this.settings);
@@ -102,7 +104,10 @@ export class App {
   }
 
   save() { Store.save(this.settings); }
-  baseTitle() { return this.G ? `${this.G.name} · Lamplight` : "Lamplight: No-Limit Hold'em"; }
+  baseTitle() {
+    if (this.bg && this.bg.s) return `${this.bg.s.name} · Lamplight`;
+    return this.G ? `${this.G.name} · Lamplight` : "Lamplight: Hold'em & Backgammon";
+  }
   get myId() { return this.wallet ? this.wallet.id : null; }
 
   /* ───────────── lobby ───────────── */
@@ -126,12 +131,124 @@ export class App {
     this.renderLobby();
   }
   claimBonus() { this.net.send({ t: this.wallet && this.wallet.refill ? 'refill' : 'bonus' }); }
-  createTable(opts) { this.lobby.error = ''; this.pendingCreateSit = true; this.net.send({ t: 'create', opts }); }
-  join(id, sit) {
+  createTable(opts) { this.lobby.error = ''; this.pendingCreateSit = true; this.pendingCreateGame = opts.game || 'poker'; this.net.send({ t: 'create', opts }); }
+  /** `game` is known when we just opened the table; otherwise the lobby list says (or the first snapshot will). */
+  join(id, sit, game = null) {
     if (!this.settings.name) { this.lobby.error = 'Pick a name first, so the table knows what to call you.'; this.lobby.tab = 'tables'; this.renderLobby(); return; }
     this.lobby.error = '';
-    this.enterTable(id, sit);
+    const t = this.lobby.tables.find(x => x.id === id);
+    if (game === 'bg' || (!game && t && t.game === 'bg')) this.enterBg(id, sit); else this.enterTable(id, sit);
     this.net.send({ t: 'join', id, sit, name: this.net.name });
+  }
+
+  /* ───────────── backgammon ───────────── */
+  enterBg(id, sit) {
+    this.tableId = null; this.G = null; this.queue = []; this.wantSeat = false;
+    this.panel.reset(); this.view.clearCards?.(); this.view.hideMsg();
+    this.bg = { id, s: null, me: null, pending: null, wantSeat: sit, log: [], chat: [], chatUnread: false, rollKey: 0, stateAt: 0 };
+    const u = new URL(location.href); u.searchParams.set('t', id); history.replaceState(null, '', u);
+    document.body.classList.add('in-bg');
+    this.showLobby(false);
+    this.renderBg();
+  }
+  bgLeave() {
+    this.net.send({ t: 'leave' });
+    this.bg = null;
+    document.body.classList.remove('in-bg');
+    const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null, '', u);
+    document.title = this.baseTitle();
+    this.renderBg();
+    this.showLobby(true);
+  }
+  bgSend(t, extra = {}) { this.net.send({ t, ...extra }); }
+  clearChatUnread() { if (this.bg) { this.bg.chatUnread = false; this.renderBg(); } }
+  bgSit(seat) {
+    if (!this.settings.name) { this.view.toast('Pick a name in the lobby first'); return; }
+    this.net.send({ t: 'sit', seat });
+  }
+  openSettings() { Modal.open('settingsModal'); }
+  renderBg() { this.renderBgUI(this.bg, this); }
+  /** Messages for the board we're at. Returns false for the ones the rest of the app handles (wallet, profile…). */
+  onBg(m) {
+    const b = this.bg;
+    const mySeat = s => (b.me != null && s.seats[b.me] && s.seats[b.me].kind === 'human' && (!this.myId || s.seats[b.me].id === this.myId) ? b.me : null);
+    switch (m.e) {
+      case 'bgSnap':
+        b.s = m.s; b.me = m.me; b.pending = m.pending; b.log = m.log || []; b.stateAt = Date.now(); b.rollKey++;
+        if (b.me != null) b.pending = null;
+        document.title = this.baseTitle();
+        this.renderBg();
+        return true;
+      case 'bg': {
+        const was = b.s;
+        b.s = m.s; b.stateAt = Date.now();
+        b.me = mySeat(m.s);
+        if (b.pending != null && !m.s.reserved.length && b.me == null && m.s.seats[b.pending] && m.s.seats[b.pending].kind === 'human') b.pending = null;
+        if (m.line) this.bgLine(m.line, false);
+        if (m.ev) this.bgEvent(m.ev);
+        if (m.s.phase === 'roll' && m.s.turn === b.me && b.me != null && (!was || was.phase !== 'roll' || was.turn !== b.me) && m.s.canDouble) {
+          this.sfx.turn();
+          if (document.hidden) document.title = '● Your roll · Lamplight';
+        }
+        this.renderBg();
+        return true;
+      }
+      case 'bgLine': this.bgLine(m.line, true); return true;
+      case 'pending':
+        b.pending = m.seat;
+        this.view.toast(m.now === false ? (m.match ? "Seat saved. You're in when this match ends" : "Seat saved. You're in when this game ends") : 'Taking your seat');
+        this.renderBg();
+        return true;
+      case 'bgBusted': this.view.toast(`Out of chips. Rebuy for ${Fmt.usd(m.buyIn)} to keep playing`); return true;
+      case 'bgMatchWon': this.celebrate('Match won!', `${Fmt.usd(m.prize)} to your bankroll`, 'big'); return true;
+      case 'chat':
+        b.chat.push({ name: m.name, text: m.text, bot: !!m.bot });
+        if (b.chat.length > 80) b.chat.shift();
+        b.chatUnread = true;
+        if (m.bot) this.sfx.blip();
+        this.renderBg();
+        return true;
+      case 'toast': this.view.toast(fillMoney(m.msg)); return true;
+      case 'error':
+        if (m.gone) { this.bgLeave(); this.lobby.error = m.msg; this.renderLobby(); return true; }
+        if (b.pending != null && b.me == null) b.pending = null;
+        this.view.toast(m.msg);
+        this.renderBg();
+        return true;
+      case 'replaced':
+        this.bg = null; document.body.classList.remove('in-bg'); this.renderBg();
+        this.lobby.replaced = true;
+        this.lobby.error = 'This seat was opened in another tab. Close this one, or reload it to play here instead.';
+        this.showLobby(true);
+        return true;
+      case 'achievement': this.showAchievement(m); return true;
+    }
+    return false;
+  }
+  bgLine(line, render) {
+    const b = this.bg;
+    b.log.push(line);
+    if (b.log.length > 120) b.log.shift();
+    if (render) this.renderBg();
+  }
+  /** Sounds for what just happened on the board. */
+  bgEvent(ev) {
+    const b = this.bg, me = b.me;
+    switch (ev.type) {
+      case 'opening': case 'roll': b.rollKey++; this.sfx.card(); setTimeout(() => this.sfx.flip(), 90); break;
+      case 'move': if (ev.moves && ev.moves.some(x => x.hit)) this.sfx.chips(); else this.sfx.chip(); break;
+      case 'undo': this.sfx.chip(); break;
+      case 'double': this.sfx.bell(); if (me != null && ev.seat !== me) this.sfx.turn(); break;
+      case 'reject': this.view.toast("That move isn't allowed"); break;
+      case 'over': {
+        const r = ev.result;
+        if (me != null && r.winner === me) {
+          this.sfx.win();
+          if (!r.matchOver && r.mult >= 2 && r.kind !== 'drop' && this.settings.celebrate) this.celebrate(r.mult === 3 ? 'Backgammon!' : 'Gammon!', `${r.points} points`, 'med');
+        } else this.sfx.chips();
+        break;
+      }
+    }
   }
   enterTable(id, sit) {
     this.tableId = id; this.wantSeat = sit;
@@ -177,10 +294,14 @@ export class App {
     c.classList.toggle('down', !up);
     c.textContent = up ? 'Online' : 'Reconnecting';
     this.renderLobby();
+    if (this.bg) this.renderBg();
   }
   onOpen() {
     this.net.send({ t: 'hello', name: this.net.name });
-    if (this.tableId) {
+    if (this.bg) {
+      const b = this.bg;
+      this.net.send({ t: 'join', id: b.id, sit: b.me != null || b.pending != null || b.wantSeat, name: this.net.name });
+    } else if (this.tableId) {
       const seated = this.G && (this.G.me != null || this.G.pendingSeat != null);
       this.syncing = true; this.queue = [];
       this.net.send({ t: 'join', id: this.tableId, sit: seated || this.wantSeat, name: this.net.name });
@@ -192,10 +313,13 @@ export class App {
   resync() { this.deferred.push(...this.queue.filter(m => ONE_OFF.has(m.e))); this.queue = []; this.syncing = true; this.net.send({ t: 'sync' }); }
 
   onMessage(m) {
+    // joined from a link before the lobby said what kind of table it was: it's a backgammon board
+    if (m.e === 'bgSnap' && !this.bg && this.tableId && m.s && m.s.id === this.tableId) this.enterBg(m.s.id, this.wantSeat);
+    if (this.bg && this.onBg(m)) return;
     switch (m.e) {
       case 'lobby': this.lobby.tables = m.tables; this.renderLobby(); return;
       case 'created':
-        this.join(m.id, !!this.pendingCreateSit); this.pendingCreateSit = false; return;
+        this.join(m.id, !!this.pendingCreateSit, this.pendingCreateGame); this.pendingCreateSit = false; return;
       case 'error':
         if (this.tableId && !m.gone) { this.view.toast(m.msg); if (this.G && this.G.pendingSeat != null && this.G.me == null) { this.G.pendingSeat = null; this.panel.refreshMode(this.G); } return; }
         if (m.gone && this.tableId) { this.leaveTable(); }
@@ -205,7 +329,7 @@ export class App {
         this.lobby.error = 'This seat was opened in another tab. Close this one, or reload it to play here instead.';
         this.showLobby(true); return;
       case 'wallet':
-        this.wallet = m.wallet; this.renderLobby(); this.updateTopbar(); return;
+        this.wallet = m.wallet; this.renderLobby(); this.updateTopbar(); if (this.bg) this.renderBg(); return;
       case 'bonus':
         this.view.toast(m.refill ? `Topped up with ${Fmt.usd(m.amount)} to get you back in the game` : `Daily bonus: ${Fmt.usd(m.amount)}${m.streak > 1 ? `, day ${m.streak} of your streak` : ''}`);
         this.sfx.win();

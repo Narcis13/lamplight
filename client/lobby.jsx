@@ -6,6 +6,7 @@
    ════════════════════════════════════════════════════════════════════ */
 import { useEffect, useState } from 'react';
 import { PROFILES, STAKES, SNG, Fmt } from '../shared/engine.js';
+import { BG } from '../shared/backgammon.js';
 import { hueOf } from './view.js';
 import { Profile, Leaderboard } from './screens.jsx';
 
@@ -196,6 +197,84 @@ function CreateTable({ onCreate, disabled, bankroll }) {
   );
 }
 
+/* ───────────── backgammon ───────────── */
+const BOT_LABEL = { casual: 'a casual bot', regular: 'a regular bot', sharp: 'a sharp bot' };
+
+function BgCard({ t, highlight, onSit, onWatch, bankroll }) {
+  const short = bankroll != null && bankroll < t.buyIn;
+  const format = t.mode === 'money'
+    ? `${usd(t.stake)} a point · ${usd(t.buyIn)} buy-in`
+    : `Match to ${t.matchTo} · ${usd(t.entry)} entry, winner takes ${usd(t.entry * 2)}`;
+  const against = t.withBot ? `vs ${BOT_LABEL[t.skill] || 'a bot'} until a person sits` : 'two people, no bots';
+  const status = t.playing ? (t.mode === 'match' ? `game ${t.gameNo}, ${t.scores[0]}-${t.scores[1]}` : `game ${t.gameNo} under way`) : '';
+  return (
+    <div className={`tcard bgcard${highlight ? ' highlight' : ''}${t.playing ? ' live' : ''}`}>
+      <div>
+        <h4>{t.name} <span className={`stake-tag${t.mode === 'match' ? ' gold' : ''}`}>{t.mode === 'money' ? `${usd(t.stake)}/pt` : `to ${t.matchTo}`}</span></h4>
+        <div className="meta">
+          {t.playing && <span className="live-dot" aria-hidden="true" />}
+          {format} · {SPEED_LABEL[t.speed] || t.speed} · {against}{status ? ` · ${status}` : ''}
+        </div>
+      </div>
+      <div className="acts2">
+        <CopyLink id={t.id} />
+        <button className="btn small" onClick={onWatch}>Watch</button>
+        <button className="btn primary small" onClick={onSit} disabled={t.open <= 0 || short}
+          title={t.open <= 0 ? 'Both seats have people in them' : short ? `You need ${usd(t.buyIn)} to play here` : t.withBot ? 'The bot gives you its seat' : 'Take a seat'}>
+          {t.open <= 0 ? 'Full' : 'Play'}
+        </button>
+      </div>
+      <div className="seats">{t.seats.map((s, i) => <SeatPip key={i} s={s} />)}</div>
+    </div>
+  );
+}
+
+function CreateBoard({ onCreate, disabled, bankroll }) {
+  const [mode, setMode] = useState('money');
+  const [name, setName] = useState('');
+  const [stake, setStake] = useState(BG.stakes[0]);
+  const [matchTo, setMatchTo] = useState(5);
+  const [entry, setEntry] = useState(500);
+  const [bot, setBot] = useState(false);
+  const [skill, setSkill] = useState('regular');
+  const [speed, setSpeed] = useState('normal');
+  const cost = mode === 'money' ? stake * BG.buyInPoints : entry;
+  const short = bankroll != null && bankroll < cost;
+  return (
+    <form className="panel-card create" onSubmit={e => { e.preventDefault(); onCreate({ game: 'bg', mode, name, stake, matchTo, entry, bot, skill, speed }); }}>
+      <h2>Open a board</h2>
+      <Seg label="Format" value={mode} onChange={setMode} options={[['money', 'Money game'], ['match', 'Match']]} />
+      <h3>Name</h3>
+      <div className="field"><input value={name} maxLength={24} placeholder={mode === 'match' ? 'Sunday match' : 'Kitchen table'} onChange={e => setName(e.target.value)} aria-label="Board name" /></div>
+      {mode === 'money' ? (
+        <>
+          <h3>Stake</h3>
+          <Seg label="Stake" value={stake} onChange={setStake} options={BG.stakes.map(v => [v, `${usd(v)}/pt`])} />
+          <p className="form-note">You sit down with {usd(stake * BG.buyInPoints)}, forty points' worth. Gammons count double, backgammons triple, and the cube multiplies it all.</p>
+        </>
+      ) : (
+        <>
+          <h3>Length</h3>
+          <Seg label="Match length" value={matchTo} onChange={setMatchTo} options={BG.lengths.map(v => [v, `${v} ${v === 1 ? 'point' : 'points'}`])} />
+          <h3>Entry</h3>
+          <Seg label="Entry" value={entry} onChange={setEntry} options={BG.entries.map(v => [v, usd(v)])} />
+          <p className="form-note">Each player puts up {usd(entry)} and the winner takes {usd(entry * 2)}. Crawford rule, and the cube works as in any match.</p>
+        </>
+      )}
+      <h3>Opponent</h3>
+      <Seg label="Opponent" value={bot} onChange={setBot} options={[[false, 'A friend'], [true, 'Lamplight bot']]} />
+      {bot && <><h3>Bot</h3><Seg label="Bot skill" value={skill} onChange={setSkill} options={[['casual', 'Casual'], ['regular', 'Regular'], ['sharp', 'Sharp']]} /></>}
+      {!bot && <p className="form-note">Send your friend the board's <b>Link</b>. They open it, pick a name and sit.</p>}
+      <h3>Clock</h3>
+      <Seg label="Speed" value={speed} onChange={setSpeed} options={[['relaxed', 'Relaxed'], ['normal', 'Normal'], ['turbo', 'Turbo']]} />
+      <div className="sheet-actions">
+        <button className="btn primary" disabled={disabled || short}>Open and sit · {usd(cost)}</button>
+      </div>
+      {short && <p className="form-note neg">Your bankroll can't cover this.</p>}
+    </form>
+  );
+}
+
 function Tabs({ tab, onTab }) {
   const tabs = [['tables', 'Play'], ['leaderboard', 'Leaderboard'], ['profile', 'Profile']];
   return (
@@ -212,10 +291,19 @@ export function Lobby({ state, app }) {
   const watch = id => { commit(); app.join(id, false); };
   const host = location.port ? `${location.hostname}:${location.port}` : location.hostname;
   const bankroll = state.wallet ? state.wallet.bankroll : null;
-  const cash = state.tables.filter(t => t.mode !== 'sng');
+  const [game, setGameState] = useState(app.settings.lobbyGame === 'bg' ? 'bg' : 'poker');
+  const setGame = g => { setGameState(g); app.settings.lobbyGame = g; app.save(); };
+  // a shared link to a backgammon board opens the backgammon side
+  const hl = state.highlight && state.tables.find(t => t.id === state.highlight);
+  useEffect(() => { if (hl) setGameState(hl.game === 'bg' ? 'bg' : 'poker'); }, [hl && hl.id]);
+  const boards = state.tables.filter(t => t.game === 'bg');
+  const bgOrder = t => (t.mode === 'money' ? 0 : 1) * 10000 + (t.mode === 'money' ? t.stake : t.entry) / 1000;
+  boards.sort((a, b) => bgOrder(a) - bgOrder(b));
+  const poker = state.tables.filter(t => t.game !== 'bg');
+  const cash = poker.filter(t => t.mode !== 'sng');
   const order = Object.keys(STAKES);
   cash.sort((a, b) => order.indexOf(a.stakesKey) - order.indexOf(b.stakesKey));
-  const sngs = state.tables.filter(t => t.mode === 'sng');
+  const sngs = poker.filter(t => t.mode === 'sng');
   const rank = t => ({ registering: 0, running: 1, finished: 2 }[t.tourney?.state] ?? 3);
   sngs.sort((a, b) => rank(a) - rank(b));
 
@@ -237,6 +325,39 @@ export function Lobby({ state, app }) {
       {state.error && <div className="err" role="alert">{state.error}</div>}
 
       {state.tab === 'tables' && (
+        <div className="game-switch" role="tablist" aria-label="Game">
+          {[['poker', "Texas Hold'em", '♠'], ['bg', 'Backgammon', '⚀']].map(([k, l, icon]) => (
+            <button key={k} role="tab" aria-selected={String(game === k)} onClick={() => setGame(k)}>
+              <span className="gs-icon" aria-hidden="true">{icon}</span>{l}
+              <small>{k === 'poker' ? `${poker.length} ${poker.length === 1 ? 'table' : 'tables'}` : `${boards.length} ${boards.length === 1 ? 'board' : 'boards'}`}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {state.tab === 'tables' && game === 'bg' && (
+        <div className="lobby-grid">
+          <div className="lobby-col">
+            <section className="panel-card" aria-labelledby="bgTitle">
+              <div className="sec-head">
+                <h2 id="bgTitle">Backgammon</h2>
+                <span className="sec-sub">Money games by the point, or matches for an entry. Doubling cube, gammons and all</span>
+              </div>
+              <div className="tables">
+                {boards.length === 0 && <p className="empty-tables">No boards open. Open one on the right.</p>}
+                {boards.map(t => <BgCard key={t.id} t={t} bankroll={bankroll} highlight={t.id === state.highlight} onSit={() => sit(t.id)} onWatch={() => watch(t.id)} />)}
+              </div>
+              <p className="hint">
+                Playing a friend? Open a board with <b>A friend</b> as the opponent and send them its <b>Link</b>,
+                or have them open <code>{host}</code> and pick the board here.
+              </p>
+            </section>
+          </div>
+          <CreateBoard bankroll={bankroll} disabled={!state.connected} onCreate={opts => { commit(); if (!name.trim()) { app.lobby.error = 'Pick a name first.'; app.renderLobby(); return; } app.createTable(opts); }} />
+        </div>
+      )}
+
+      {state.tab === 'tables' && game === 'poker' && (
         <div className="lobby-grid">
           <div className="lobby-col">
             <section className="panel-card" aria-labelledby="sngTitle">

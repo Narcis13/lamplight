@@ -629,6 +629,9 @@ export class Table {
     }
   }
 
+  /** Something is riding on this table: a tournament to finish, or someone's chips. Idle sweeps leave it open. */
+  busy() { return (this.tourney && this.tourney.state === 'running') || this.game.players.some(p => p.isHuman); }
+
   /** People sitting here right now: cashed out when the server shuts down. */
   cashOutAll() {
     if (!this.db) return;

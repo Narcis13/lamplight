@@ -4,6 +4,7 @@ import { App } from './app.js';
 import { Lobby } from './lobby.jsx';
 import { Profile } from './screens.jsx';
 import { Replayer } from './replay.jsx';
+import { BgRoom } from './bg.jsx';
 
 /** Screens drawn over the table or the lobby: a hand replay, someone's profile. */
 function Overlay({ state, app }) {
@@ -35,7 +36,13 @@ function Overlay({ state, app }) {
 
 const lobbyRoot = createRoot(document.getElementById('lobby'));
 const overlayRoot = createRoot(document.getElementById('overlay'));
+const bgEl = document.getElementById('bgroom');
+const bgRoot = createRoot(bgEl);
 window.lamplight = new App({
   renderLobby: (state, app) => lobbyRoot.render(<Lobby state={{ ...state }} app={app} />),
   renderOverlay: (state, app) => overlayRoot.render(<Overlay state={{ ...state }} app={app} />),
+  renderBg: (bg, app) => {
+    bgEl.hidden = !bg;
+    bgRoot.render(bg ? <BgRoom key={bg.id} bg={{ ...bg }} app={app} /> : null);
+  },
 });

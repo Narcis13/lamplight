@@ -1,7 +1,8 @@
 /* ════════════════════════════════════════════════════════════════════
    LAMPLIGHT · server
    Bun.serve: the client bundle (HTML import), a small JSON API and one
-   WebSocket endpoint at /ws for the lobby and the tables.
+   WebSocket endpoint at /ws for the lobby, the poker tables and the
+   backgammon boards (both kinds sit in the same lobby list).
 
    Identity: the browser keeps a secret account key in localStorage and
    sends it when it connects. The account id is a hash of that key, so
@@ -9,7 +10,9 @@
    Seats are held by a per-tab token, as before.
    ════════════════════════════════════════════════════════════════════ */
 import { cleanName, SPEEDS, STAKES, SNG } from '../shared/engine.js';
+import { BG } from '../shared/backgammon.js';
 import { Table } from './table.js';
+import { BgTable } from './bgtable.js';
 import { DB } from './db.js';
 import homepage from '../client/index.html';
 
@@ -37,6 +40,7 @@ class Lobby {
   newId() { return (++this.seq).toString(36) + Math.random().toString(36).slice(2, 6); }
   create(opts) {
     if (this.tables.size >= MAX_TABLES) return null;
+    if (opts.game === 'bg') return this.createBg(opts);
     const speed = opts.speed === 'test' && !ALLOW_TEST_SPEED ? 'normal' : opts.speed;
     const mode = opts.mode === 'sng' ? 'sng' : 'cash';
     const t = new Table(this, {
@@ -53,6 +57,22 @@ class Lobby {
       sngBuyIn: SNG.buyIns.includes(Number(opts.sngBuyIn)) ? Number(opts.sngBuyIn) : 500,
       permanent: !!opts.permanent, auto: !!opts.auto,
       db,
+    });
+    this.tables.set(t.id, t);
+    this.changed();
+    return t;
+  }
+  /** A backgammon board: a money game at a stake per point, or a match to N points. */
+  createBg(opts) {
+    const speed = opts.speed === 'test' && !ALLOW_TEST_SPEED ? 'normal' : opts.speed;
+    const mode = opts.mode === 'match' ? 'match' : 'money';
+    const t = new BgTable(this, {
+      id: this.newId(),
+      name: opts.builtIn ? String(opts.name) : cleanName(opts.name, 24, mode === 'match' ? `Match ${this.seq + 1}` : `Board ${this.seq + 1}`),
+      mode, stake: Number(opts.stake), entry: Number(opts.entry), matchTo: Number(opts.matchTo),
+      speed: BG.speeds[speed] ? speed : 'normal', bot: opts.bot !== false,
+      skill: ['casual', 'regular', 'sharp'].includes(opts.skill) ? opts.skill : 'regular',
+      permanent: !!opts.permanent, db,
     });
     this.tables.set(t.id, t);
     this.changed();
@@ -78,8 +98,7 @@ class Lobby {
     const now = Date.now();
     for (const t of this.tables.values()) {
       if (!t.permanent && t.clients.size === 0 && t.emptySince && now - t.emptySince > IDLE_TABLE_MS) {
-        if (t.tourney && t.tourney.state === 'running') continue; // finish it first, even with nobody watching
-        if (t.game.players.some(p => p.isHuman)) continue; // someone's chips are still on it
+        if (t.busy()) continue; // a tournament to finish, or someone's chips still on it
         t.close();
         this.tables.delete(t.id);
         this.changed();
@@ -120,6 +139,10 @@ lobby.create({ name: 'Night Owls', speed: 'turbo', stakes: 'micro', buyInBB: 100
 lobby.create({ name: 'The Back Room', speed: 'normal', stakes: 'low', buyInBB: 100, fillBots: true, skill: 'sharp', permanent: true, builtIn: true });
 lobby.create({ name: 'Brass Rail', speed: 'relaxed', stakes: 'mid', buyInBB: 100, fillBots: true, skill: 'sharp', permanent: true, builtIn: true });
 lobby.create({ name: 'Sunset Sit & Go', mode: 'sng', speed: 'turbo', sngBuyIn: 500, permanent: true, auto: true, builtIn: true });
+lobby.create({ game: 'bg', name: 'The Backgammon Parlor', mode: 'money', stake: 10, speed: 'normal', bot: true, skill: 'regular', permanent: true, builtIn: true });
+lobby.create({ game: 'bg', name: 'Tavla House', mode: 'match', matchTo: 5, entry: 500, speed: 'normal', bot: true, skill: 'sharp', permanent: true, builtIn: true });
+lobby.create({ game: 'bg', name: 'Open Board', mode: 'money', stake: 10, speed: 'normal', bot: false, permanent: true, builtIn: true });
+lobby.create({ game: 'bg', name: 'Friendly Match', mode: 'match', matchTo: 3, entry: 100, speed: 'relaxed', bot: false, permanent: true, builtIn: true });
 
 const send = (ws, m) => { try { ws.send(typeof m === 'string' ? m : JSON.stringify(m)); } catch { /* closed */ } };
 

@@ -373,6 +373,42 @@ function RecentHands({ list, onReplay }) {
   );
 }
 
+const BG_KIND = { single: 'Single', gammon: 'Gammon', backgammon: 'Backgammon', drop: 'Double passed', resign: 'Resigned', forfeit: 'Forfeit' };
+
+function BgRecord({ bg }) {
+  if (!bg || !bg.games) {
+    return (
+      <section className="pf-box pf-sng" aria-labelledby="pfBgT">
+        <header className="pf-box-head"><h3 id="pfBgT">Backgammon</h3></header>
+        <div className="pf-empty-row">
+          <span className="pf-empty-art sm" aria-hidden="true">🎲</span>
+          <p>No backgammon yet. Play the house bots for a few dollars a point, or open a board and send a friend the link.</p>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className="pf-box pf-sng" aria-labelledby="pfBgT">
+      <header className="pf-box-head"><h3 id="pfBgT">Backgammon</h3><span className="pf-note">{bg.matches ? `${bg.matchesWon} of ${bg.matches} matches won` : 'Money games'}</span></header>
+      <div className="pf-mini-tiles">
+        <div><b className="num">{bg.wins}-{bg.games - bg.wins}</b><span>Won-lost</span></div>
+        <div><b className="num">{bg.gammons + bg.backgammons}</b><span>Gammons{bg.backgammons ? ` (${bg.backgammons} bg)` : ''}</span></div>
+        <div><b className="num">{bg.pointsWon - bg.pointsLost > 0 ? '+' : ''}{bg.pointsWon - bg.pointsLost}</b><span>Points</span></div>
+        <div><b className={`num ${tone(bg.net)}`}>{signedUsd(bg.net) || '$0'}</b><span>Money games</span></div>
+      </div>
+      <ol className="pf-sng-list">
+        {(bg.recent || []).map(g => (
+          <li key={g.id}>
+            <span className={`pf-place ${g.won ? 'p1' : ''}`} aria-label={g.won ? 'Won' : 'Lost'}>{g.won ? 'W' : 'L'}</span>
+            <span className="pf-sng-n">vs {g.opponent}<small>{BG_KIND[g.kind] || g.kind} · {g.points} {g.points === 1 ? 'point' : 'points'}{g.cube > 1 ? `, cube ${g.cube}` : ''} · {timeAgo(g.at)}</small></span>
+            <b className={`num ${tone(g.won ? 1 : -1)}`}>{g.mode === 'money' ? signedUsd(g.amount) : `${g.won ? '+' : '−'}${g.points}`}</b>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export function Profile({ data, mine = false, onReplay, name: nameProp }) {
   if (!data) {
     return <div className="pf pf-loading" aria-busy="true"><div className="pf-skel" /><div className="pf-skel" /><div className="pf-skel tall" /></div>;
@@ -419,6 +455,7 @@ export function Profile({ data, mine = false, onReplay, name: nameProp }) {
 
       <div className="pf-cols">
         <SngRecord stats={st} list={data.sng} />
+        <BgRecord bg={data.bg} />
         {data.reads ? <BotReads reads={data.reads} /> : !mine ? null : (
           <section className="pf-box pf-reads" aria-labelledby="pfReadsT2">
             <header className="pf-box-head"><h3 id="pfReadsT2">How the bots read you</h3></header>
@@ -435,13 +472,14 @@ export function Profile({ data, mine = false, onReplay, name: nameProp }) {
 
 /* ───────────── leaderboard ───────────── */
 const BOARDS = [
-  ['worth', 'Richest'], ['winners', 'Top winners'], ['pots', 'Biggest pots'], ['sng', 'Sit & Go'], ['bots', 'The House'],
+  ['worth', 'Richest'], ['winners', 'Top winners'], ['pots', 'Biggest pots'], ['sng', 'Sit & Go'], ['bg', 'Backgammon'], ['bots', 'The House'],
 ];
 const BOARD_NOTE = {
   worth: 'Bankroll plus chips on tables.',
   winners: 'Lifetime cash-game profit.',
   pots: 'The single biggest cash pot each player has dragged.',
   sng: 'Sit & Go wins. Ties go to whoever needed fewer tournaments.',
+  bg: 'Backgammon games won, people and house bots alike. Ties go to whoever needed fewer games.',
   bots: 'The regulars you are up against, and how they are doing against everyone. Beat them.',
 };
 
@@ -485,6 +523,24 @@ export function Leaderboard({ data, myId, onProfile }) {
         </li>
       );
     }) : null;
+  } else if (board === 'bg') {
+    body = rows.length ? rows.map((r, i) => {
+      const P = r.bot ? PROFILES[r.bot] : null;
+      const sub = `${r.wins}-${r.games - r.wins}${r.gammons + r.backgammons ? ` · ${r.gammons + r.backgammons} gammons` : ''}${r.matches ? ` · ${r.matches_won}/${r.matches} matches` : ''}`;
+      if (P) {
+        return (
+          <li key={r.id} className="bot">
+            <div className="lb-row">
+              <Rank i={i} />
+              <Avatar name={P.name} profileKey={r.bot} size={34} />
+              <span className="lb-who"><b>{P.name}<em className="pf-chip">House</em></b><small>{sub}</small></span>
+              <b className="num lb-val">{r.wins} {r.wins === 1 ? 'win' : 'wins'}</b>
+            </div>
+          </li>
+        );
+      }
+      return person(r, i, `${r.wins} ${r.wins === 1 ? 'win' : 'wins'}`, sub);
+    }) : null;
   } else {
     body = rows.length ? rows.map((r, i) => {
       if (board === 'worth') return person(r, i, usd(r.worth), `${(r.hands || 0).toLocaleString('en-US')} hands`);
@@ -502,11 +558,11 @@ export function Leaderboard({ data, myId, onProfile }) {
       </div>
       <p className="lb-note">{BOARD_NOTE[board]}</p>
       {body ? <ol className={`lb-list${board === 'bots' ? ' house' : ''}`}>{body}</ol> : (
-        <div className="pf-empty-row lb-empty"><span className="pf-empty-art sm" aria-hidden="true">{board === 'bots' ? '🎰' : '🪑'}</span>
-          <p>{board === 'bots' ? 'The house has not played a hand yet.' : board === 'sng' ? 'No Sit & Go has finished yet. Be the first name here.' : 'Nobody here yet. Sit down and claim the top spot.'}</p></div>
+        <div className="pf-empty-row lb-empty"><span className="pf-empty-art sm" aria-hidden="true">{board === 'bots' ? '🎰' : board === 'bg' ? '🎲' : '🪑'}</span>
+          <p>{board === 'bots' ? 'The house has not played a hand yet.' : board === 'sng' ? 'No Sit & Go has finished yet. Be the first name here.' : board === 'bg' ? 'No backgammon games yet. The board is set up and waiting.' : 'Nobody here yet. Sit down and claim the top spot.'}</p></div>
       )}
       <p className="lb-totals num">
-        {(t.hands || 0).toLocaleString('en-US')} hands dealt · {(t.players || 0).toLocaleString('en-US')} players · {(t.tournaments || 0).toLocaleString('en-US')} tournaments
+        {(t.hands || 0).toLocaleString('en-US')} hands dealt · {(t.players || 0).toLocaleString('en-US')} players · {(t.tournaments || 0).toLocaleString('en-US')} tournaments · {(t.bgGames || 0).toLocaleString('en-US')} backgammon games
       </p>
     </div>
   );
