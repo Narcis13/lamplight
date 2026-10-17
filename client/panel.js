@@ -4,7 +4,7 @@
    raise buttons when the server says it's your turn.
    ════════════════════════════════════════════════════════════════════ */
 import { clamp, Fmt } from '../shared/engine.js';
-import { $, $$, STREET_NAME, Modal } from './view.js';
+import { $, $$, STREET_NAME, Modal, compactMode } from './view.js';
 
 export class ActionPanel {
   constructor(app) {
@@ -18,7 +18,7 @@ export class ActionPanel {
 
     this.foldBtn.onclick = () => this.act('fold');
     this.callBtn.onclick = () => this.act('call');
-    this.raiseBtn.onclick = () => this.act('raise');
+    this.raiseBtn.onclick = () => this.tapRaise();
     this.slider.oninput = () => this.setValue(+this.slider.value, true);
     this.input.onchange = () => this.setValue(this.parseInput());
     this.input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); this.setValue(this.parseInput()); this.act('raise'); } };
@@ -28,9 +28,18 @@ export class ActionPanel {
     this.presets.onclick = e => { const b = e.target.closest('.preset'); if (b) this.setValue(+b.dataset.v); };
     this.preFold.onclick = () => this.togglePre('fold');
     this.preCall.onclick = () => this.togglePre('call');
+    // a tap anywhere off the dock folds the bet sizing away again
+    document.addEventListener('pointerdown', e => { if (this.sizingOpen && !e.target.closest('#dock')) this.openSizing(false); });
   }
 
   get prompting() { return !!this.resolve; }
+  get sizingOpen() { return this.dock.classList.contains('sizing-open'); }
+  openSizing(v) { this.dock.classList.toggle('sizing-open', v); }
+  /** On a phone the bet sizing hides behind Raise: the first tap shows it in place of the hand info, the second bets. */
+  tapRaise() {
+    if (compactMode() && !this.sizingOpen && !this.sizing.hidden && !this.raiseBtn.hidden) { this.openSizing(true); return; }
+    this.act('raise');
+  }
   setMode(m) { this.dock.dataset.mode = m; this.app.syncIdleButtons(); }
   idle(text) { this.setMode('idle'); this.idleEl.textContent = text; }
   reset() {
@@ -89,6 +98,7 @@ export class ActionPanel {
   /** Shows the buttons. Resolves with your action; the server's clock is shown alongside. */
   prompt(L, g, ms, bank = 0) {
     this.render(L, g);
+    this.openSizing(false);
     this.setMode('turn');
     if (this.app.drawer.isOpen && window.innerWidth < 1100) this.app.drawer.close();
     this.bank = bank;
@@ -103,7 +113,7 @@ export class ActionPanel {
     const tick = () => {
       const left = Math.max(0, Math.ceil((end - performance.now()) / 1000));
       const bank = this.bank >= 1000 ? `<span class="bk">+ ${Math.round(this.bank / 1000)}s bank</span>` : '';
-      this.clockEl.innerHTML = banking ? `Time bank <b>${left}s</b>` : `${left}s to act${bank}`;
+      this.clockEl.innerHTML = banking ? `Time bank <b>${left}s</b>` : `${left}s<span class="ta"> to act</span>${bank}`;
       this.clockEl.classList.toggle('low', left <= 5);
     };
     tick();
@@ -138,6 +148,7 @@ export class ActionPanel {
   /** The server moved on without us (clock ran out, or we resynced). */
   cancel() {
     clearInterval(this._clock);
+    this.openSizing(false);
     this.clockEl.textContent = ''; this.clockEl.classList.remove('bank');
     if (this.resolve) { const r = this.resolve; this.resolve = null; r(null); }
   }
@@ -167,6 +178,7 @@ export class ActionPanel {
     else { if (this.raiseBtn.hidden) return; a = { type: 'raise', to: this.value }; }
     const r = this.resolve;
     this.resolve = null;
+    this.openSizing(false);
     clearInterval(this._clock); this.clockEl.textContent = ''; this.clockEl.classList.remove('bank');
     this.idle('');
     r(a);

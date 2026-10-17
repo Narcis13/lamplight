@@ -425,15 +425,23 @@ function Controls({ s, me, bg, app, turn, autoDone, setAutoDone, onResign }) {
 }
 
 /* ───────────── log & chat ───────────── */
-function Side({ bg, app }) {
+/** Beside the board on a wide screen; on a phone it slides over the board when you open it from the top bar. */
+function Side({ bg, app, open, onClose }) {
   const [tab, setTab] = useState('log');
   const [text, setText] = useState('');
   const box = useRef(null);
   const items = tab === 'log' ? bg.log : bg.chat;
-  useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; }, [items.length, tab]);
-  useEffect(() => { if (tab === 'chat' && bg.chatUnread) app.clearChatUnread(); }, [tab, bg.chatUnread]);
+  useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; }, [items.length, tab, open]);
+  const aside = useRef(null);
+  useEffect(() => {
+    const shown = aside.current && getComputedStyle(aside.current).visibility !== 'hidden';
+    if (tab === 'chat' && bg.chatUnread && shown) app.clearChatUnread();
+  }, [tab, bg.chatUnread, open]);
   return (
-    <aside className="bg-side panel-card">
+    <aside className={`bg-side panel-card${open ? ' open' : ''}`} ref={aside}>
+      <button className="tool close bg-side-close" aria-label="Close" onClick={onClose}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
       <div className="bg-tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'log'} onClick={() => setTab('log')}>Game log</button>
         <button role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')}>Chat{bg.chatUnread && tab !== 'chat' ? <span className="dot" /> : null}</button>
@@ -477,6 +485,7 @@ function Confirm({ title, children, yes, no, onYes, onNo }) {
 export function BgRoom({ bg, app }) {
   const s = bg.s;
   const [confirm, setConfirm] = useState(null); // 'leave' | 'resign'
+  const [sideOpen, setSideOpen] = useState(false); // the log and chat, on a phone
   const [autoDone, setAutoDoneState] = useState(!!app.settings.bgAutoDone);
   const setAutoDone = v => { setAutoDoneState(v); app.settings.bgAutoDone = v; app.save(); };
   const me = bg.me;
@@ -487,6 +496,7 @@ export function BgRoom({ bg, app }) {
   // keyboard: space rolls or confirms, U undoes, D doubles, T/P answer a double
   useEffect(() => {
     const onKey = e => {
+      if (e.key === 'Escape' && sideOpen) { setSideOpen(false); return; }
       if (!s || me == null || confirm || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target.matches && e.target.matches('input, textarea, button')) return;
       const k = e.key.toLowerCase();
@@ -499,7 +509,7 @@ export function BgRoom({ bg, app }) {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [s, me, turn, confirm]);
+  }, [s, me, turn, confirm, sideOpen]);
 
   if (!s) {
     return (
@@ -519,7 +529,7 @@ export function BgRoom({ bg, app }) {
     : `You give up ${plural(pts, 'point')}${mult > 1 ? ` (a ${KIND_NAME[mult]})` : ''}, ${usd(pts * s.stake)}.`);
   return (
     <div className="bg-room">
-      <BgTop bg={bg} app={app} onLeave={leave} />
+      <BgTop bg={bg} app={app} onLeave={leave} sideOpen={sideOpen} onSide={() => setSideOpen(!sideOpen)} />
       <main className="bg-main">
         <section className="bg-play" aria-label="The board">
           <PlayerBar s={s} seatIdx={1 - view} me={me} bg={bg} app={app} top />
@@ -527,7 +537,7 @@ export function BgRoom({ bg, app }) {
           <PlayerBar s={s} seatIdx={view} me={me} bg={bg} app={app} />
           <Controls s={s} me={me} bg={bg} app={app} turn={turn} autoDone={autoDone} setAutoDone={setAutoDone} onResign={() => setConfirm('resign')} />
         </section>
-        <Side bg={bg} app={app} />
+        <Side bg={bg} app={app} open={sideOpen} onClose={() => setSideOpen(false)} />
       </main>
       {confirm === 'leave' && (
         <Confirm title="Leave the board?" yes="Leave" no="Keep playing" onNo={() => setConfirm(null)} onYes={() => { setConfirm(null); app.bgLeave(); }}>
@@ -543,7 +553,7 @@ export function BgRoom({ bg, app }) {
   );
 }
 
-function BgTop({ bg, app, onLeave }) {
+function BgTop({ bg, app, onLeave, sideOpen, onSide }) {
   const s = bg.s, w = app.wallet;
   const fmt = s ? (s.mode === 'money' ? `Money game · ${usd(s.stake)} a point` : `Match to ${s.matchTo} · ${usd(s.entry)} entry`) : '';
   return (
@@ -561,6 +571,12 @@ function BgTop({ bg, app, onLeave }) {
       </div>
       <nav className="tools" aria-label="Board tools">
         {w && <span className="wallet-chip" title="Your bankroll"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="7" rx="7" ry="3" /><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" /></svg><b className="num">{usd(w.bankroll)}</b></span>}
+        {onSide && (
+          <button className="tool bg-side-btn" aria-pressed={String(!!sideOpen)} onClick={onSide} aria-label="Game log and chat">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></svg>
+            {bg.chatUnread && <span className="dot" />}
+          </button>
+        )}
         <button className="tool" onClick={() => app.openSettings()}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h3M11 17h9" /><circle cx="15.5" cy="7" r="2.3" /><circle cx="8.5" cy="17" r="2.3" /></svg>
           <span className="lbl">Settings</span>

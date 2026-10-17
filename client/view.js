@@ -22,6 +22,22 @@ const at = (e, [x, y]) => { e.style.left = x + 'px'; e.style.top = y + 'px'; };
 export const STREET_NAME = { preflop: 'Preflop', flop: 'Flop', turn: 'Turn', river: 'River', showdown: 'Showdown', done: 'Hand over', idle: '' };
 const SUIT_NAME = ['spades', 'hearts', 'diamonds', 'clubs'];
 export const hueOf = name => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+
+/* ───────────── phones ─────────────
+   On a phone the table (or the board) takes the whole screen and the
+   controls float over it as glass. `<html data-compact>` says which way:
+   "port" (bars at the top and bottom) or "land" (a column on the right).
+   CSS and the code below both key off it, so they always agree.        */
+const COMPACT = [['land', '(max-height: 500px) and (orientation: landscape)'], ['port', '(max-width: 760px) and (orientation: portrait)']]
+  .map(([k, q]) => [k, matchMedia(q)]);
+export const compactMode = () => document.documentElement.dataset.compact || '';
+function syncCompact() {
+  const m = COMPACT.find(([, q]) => q.matches);
+  if (m) document.documentElement.dataset.compact = m[0]; else delete document.documentElement.dataset.compact;
+}
+syncCompact();
+COMPACT.forEach(([, q]) => q.addEventListener('change', syncCompact));
+
 /* ───────────── card faces ───────────── */
 const SUIT_PATHS = [
   '<path d="M50 5 C58 22 94 38 94 62 C94 76 83 84 72 84 C63 84 57 80 54 74 C55 84 60 91 68 96 L32 96 C40 91 45 84 46 74 C43 80 37 84 28 84 C17 84 6 76 6 62 C6 38 42 22 50 5 Z"/>',
@@ -252,11 +268,28 @@ export class TableView {
 
   fit() {
     const w = this.wrap.clientWidth, h = this.wrap.clientHeight;
-    const name = w && h ? (w / h < 0.9 ? 'port' : 'land') : (this.layoutName || 'land');
+    // on a phone the top bar and the dock float over the stage: fit the table into what they leave
+    // (top and bottom when upright, a column on the right when sideways), but never shrink it far below full screen for them.
+    // The dock's reserved height, not its current one, so the table stays put when the dock grows for a moment.
+    const mode = compactMode(), dock = $('#dock');
+    const top = mode === 'port' ? $('.topbar').offsetHeight : 0;
+    const bottom = mode === 'port' ? parseFloat(getComputedStyle(dock).minHeight) || dock.offsetHeight : 0;
+    const right = mode === 'land' ? dock.offsetWidth : 0;
+    const rw = w - right, rh = h - top - bottom;
+    const name = rw > 0 && rh > 0 ? (rw / rh < 0.9 ? 'port' : 'land') : (this.layoutName || 'land');
     if (name !== this.layoutName) { this.layoutName = name; this.applyLayout(); }
     const L = this.L;
-    const s = w && h ? Math.min(w / L.W, h / L.H) : 1;
-    this.stage.style.transform = `translate(-50%, -50%) scale(${s})`;
+    let s = w && h ? Math.min(w / L.W, h / L.H) : 1;
+    if (mode && rw > 0 && rh > 0) s = Math.max(Math.min(rw / L.W, rh / L.H), s * (mode === 'port' ? 0.86 : 0.8));
+    // centre it in the free area, but keep it on screen; when it doesn't fit, it runs under the
+    // top bar first (only the far seat is up there) and under the dock (your seat) last
+    const sw = L.W * s, sh = L.H * s;
+    const cx = sw <= w ? clamp(rw / 2, sw / 2, w - sw / 2) : w / 2;
+    let cy = top + rh / 2;
+    if (sh > rh) cy = top - Math.min(sh - rh, top) + sh / 2;
+    cy = sh <= h ? clamp(cy, sh / 2, h - sh / 2) : h / 2;
+    this.stage.style.transform = `translate(-50%, -50%) translate(${Math.round(cx - w / 2)}px, ${Math.round(cy - h / 2)}px) scale(${s})`;
+    this.wrap.style.setProperty('--ov-bottom', bottom + 'px');
     const boost = name === 'land' ? Math.round(clamp(0.82 / s, 1, 1.12) * 100) / 100 : 1;
     if (boost !== this.boost) { this.boost = boost; this.applyScales(); }
   }

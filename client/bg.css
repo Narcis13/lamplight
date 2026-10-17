@@ -262,3 +262,83 @@ body.in-bg .app { visibility: hidden; }
 @media (max-width: 560px) { .game-switch button { flex: 1 1 0; padding: 10px 12px; font-size: 18px; } .game-switch .gs-icon { font-size: 24px; } }
 .tcard.bgcard { background: linear-gradient(135deg, rgba(122, 40, 48, .10), transparent 55%), var(--field); }
 .tcard.bgcard .meta .live-dot { margin-right: 6px; }
+
+/* ═════════════ phones: the board edge to edge, everything else floats over it as glass ═════════════
+   Upright: the board spans the full width, the players and your controls sit above and below it.
+   Sideways: the board takes the full height, the players and controls stack in a column on the right.
+   Either way the room never scrolls, and the log and chat slide over from the top bar's list button. */
+.tool.bg-side-btn, .tool.bg-side-close { display: none; } /* (bun may bundle this file before styles.css, so beat .tool on specificity) */
+.bg-side-btn { position: relative; }
+.bg-side-btn .dot { position: absolute; top: 6px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--brass); }
+
+:root[data-compact] .bgroom { overflow: hidden; }
+:root[data-compact] .bg-room { position: relative; height: 100%; min-height: 0; }
+:root[data-compact] .bg-side-btn { display: inline-flex; }
+:root[data-compact] .bg-main { position: absolute; inset: 0; max-width: none; padding: 0; gap: 0; }
+:root[data-compact] .bg-play { width: 100%; min-width: 0; margin: 0; }
+:root[data-compact] .bg-board { border-radius: 0; box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .6); }
+:root[data-compact] .bg-player, :root[data-compact] .bg-controls {
+  background: var(--glass); border-color: var(--glass-line); box-shadow: none;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+:root[data-compact] .bg-player.empty { background: transparent; }
+:root[data-compact] .bg-player.on { border-color: var(--brass); box-shadow: 0 0 0 2px rgba(196, 154, 82, .28); }
+:root[data-compact] .bg-player { min-height: 46px; padding: 5px 10px; gap: 8px; }
+:root[data-compact] .bg-av { width: 30px; height: 30px; font-size: 15px; }
+:root[data-compact] .bg-name b { font-size: 16px; }
+:root[data-compact] .bg-name small { font-size: 12.5px; }
+:root[data-compact] .bg-score b { font-size: 19px; }
+:root[data-compact] .bg-controls { gap: 8px 12px; padding: 8px 10px; }
+:root[data-compact] .bg-hint { flex: 1 1 100%; min-height: 0; font-size: 14px; line-height: 1.3; }
+:root[data-compact] .bg-hint:empty { display: none; }
+:root[data-compact] .bg-acts { width: 100%; }
+:root[data-compact] .bg-acts .btn { flex: 1; justify-content: center; height: 46px; padding: 0 10px; font-size: 18px; }
+:root[data-compact] .bg-acts kbd { display: none; }
+:root[data-compact] .bg-opts { padding-top: 6px; gap: 4px 10px; font-size: 13px; }
+:root[data-compact] .bg-opts .btn.small { height: 30px; padding: 0 8px; font-size: 14px; }
+
+/* the log and chat slide over from the right */
+:root[data-compact] .bg-side {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: min(340px, 88vw); height: auto; max-width: none; margin: 0;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-radius: 0; border-width: 0 0 0 1px; box-shadow: var(--shadow);
+  transform: translateX(105%); visibility: hidden; transition: transform .3s cubic-bezier(.3, .8, .3, 1), visibility 0s .3s;
+}
+:root[data-compact] .bg-side.open { transform: none; visibility: visible; transition: transform .3s cubic-bezier(.3, .8, .3, 1); }
+:root[data-compact] .bg-side-close { display: inline-flex; align-self: flex-end; margin: -4px -4px -6px 0; }
+
+/* upright: the players and the board in the middle, your controls at the bottom near your thumb */
+:root[data-compact="port"] .bg-main { top: 46px; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+:root[data-compact="port"] .bg-play { flex: 1 0 auto; gap: 6px; padding: 6px 0 8px; justify-content: center; }
+:root[data-compact="port"] .bg-controls, :root[data-compact="port"] .bg-player.top { margin-top: auto; }
+/* tall phones have room to spare under the board: the log and chat sit there instead of sliding over */
+@media (min-height: 780px) {
+  :root[data-compact="port"] .bg-play { flex: 0 0 auto; }
+  :root[data-compact="port"] .bg-controls { margin-top: 0; }
+  :root[data-compact="port"] .bg-side:not(.open) {
+    position: static; flex: 1 1 0; min-height: 110px; width: auto; margin: 0 8px 8px; padding: 8px 10px; transform: none; visibility: visible;
+    border-radius: 14px; border-width: 1px; border-color: var(--glass-line); background: var(--glass); box-shadow: none; transition: none;
+  }
+  :root[data-compact="port"] .bg-side:not(.open) .bg-side-close, :root[data-compact="port"] .bg-side-btn { display: none; }
+}
+:root[data-compact="port"] .bg-player, :root[data-compact="port"] .bg-controls { margin-left: 8px; margin-right: 8px; }
+
+/* sideways: the board on the left at full height, a glass column on the right */
+:root[data-compact="land"] .bg-main { display: block; }
+:root[data-compact="land"] .bg-play {
+  height: 100%; display: grid; gap: 6px; padding: 0;
+  grid-template-columns: minmax(0, 1fr) var(--side-w); grid-template-rows: 38px auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "board ." "board opp" "board ." "board ctrl" "board me";
+}
+:root[data-compact="land"] .bg-play::before {
+  content: ''; grid-column: 2; grid-row: 1 / -1; border-left: 1px solid var(--glass-line);
+  background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+:root[data-compact="land"] .bg-board { grid-area: board; align-self: center; justify-self: center; width: min(100%, calc(100dvh * 980 / 720)); }
+:root[data-compact="land"] .bg-player.top { grid-area: opp; }
+:root[data-compact="land"] .bg-player:not(.top) { grid-area: me; margin-bottom: 8px; }
+:root[data-compact="land"] .bg-controls { grid-area: ctrl; }
+:root[data-compact="land"] .bg-player, :root[data-compact="land"] .bg-controls { margin: 0 8px; background: color-mix(in srgb, var(--panel-solid) 60%, transparent); }
+:root[data-compact="land"] .bg-player .btn.small { padding: 0 10px; }
+:root[data-compact="land"] .bg-score { min-width: 0; }
+:root[data-compact="land"] .topbar.bg-topbar { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-left: 0; }

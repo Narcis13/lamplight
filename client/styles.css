@@ -909,3 +909,118 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border: 0; bo
 @keyframes bankPulse { 50% { opacity: .65; } }
 .seat.bank.thinking .ring circle { stroke: #e0643e; }
 .seat.bank .avatar { box-shadow: 0 0 0 3px #1a1c26, 0 0 0 5px #e0643e, 0 0 30px rgba(224, 100, 62, .5), 0 10px 20px rgba(0, 0, 0, .5); }
+
+/* ═════════════ phones: the table fills the screen, the controls float over it ═════════════
+   <html data-compact="port"> (upright): a glass bar on top and a glass dock at the bottom.
+   <html data-compact="land"> (sideways): both stacked in a glass column on the right.
+   TableView.fit() measures them and fits the table into the space they leave.            */
+:root { --glass: rgba(244, 245, 240, .72); --glass-line: rgba(27, 36, 32, .12); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --glass: rgba(14, 17, 25, .66); --glass-line: rgba(238, 231, 215, .09); } }
+:root[data-theme="dark"] { --glass: rgba(14, 17, 25, .66); --glass-line: rgba(238, 231, 215, .09); }
+
+:root[data-compact] .app { display: block; position: relative; }
+:root[data-compact] .stage-wrap { position: absolute; inset: 0; }
+:root[data-compact] .topbar, :root[data-compact] .dock {
+  position: absolute; background: var(--glass); backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2);
+}
+:root[data-compact] .topbar { top: 0; left: 0; right: 0; height: 46px; border-bottom: 1px solid var(--glass-line); }
+:root[data-compact] .wordmark { display: none; }
+:root[data-compact] .table-info { flex: 1; min-width: 0; overflow: hidden; }
+:root[data-compact] .table-info .ti-name { min-width: 0; flex: 0 1 auto; }
+:root[data-compact] #statsBtn, :root[data-compact] .wallet-chip { display: none; }
+:root[data-compact] .tool .lbl { display: none; }
+:root[data-compact] .emote-btn { bottom: calc(var(--ov-bottom, 0px) + 12px); left: 10px; width: 40px; height: 40px; font-size: 20px; background: var(--glass); }
+:root[data-compact] .emotes { bottom: calc(var(--ov-bottom, 0px) + 60px); left: 10px; }
+:root[data-compact] .toasts { top: calc(54px + env(safe-area-inset-top, 0px)); }
+
+/* the dock, both ways: bet sizing hides behind Raise (see ActionPanel.tapRaise) and takes the hand info's place */
+:root[data-compact] .dock:not(.sizing-open) .sizing { display: none; }
+:root[data-compact] .dock.sizing-open .hand-info { display: none; }
+:root[data-compact] .dock.sizing-open .act.raise { box-shadow: 0 0 0 2px var(--brass-hi), 0 0 18px rgba(233, 201, 133, .55), inset 0 1px 0 rgba(255, 255, 255, .2); }
+:root[data-compact] .act kbd { display: none; }
+:root[data-compact] .controls { min-height: 0; align-items: stretch; }
+:root[data-compact] .presets { justify-content: flex-start; }
+:root[data-compact] .preset { flex: 1 1 auto; padding: 0 8px; }
+:root[data-compact] input[type="range"] { min-width: 0; }
+:root[data-compact] .idle-ui { align-items: stretch; text-align: center; }
+:root[data-compact] .idle-actions { justify-content: center; }
+:root[data-compact] .idle-actions .btn { flex: 1 1 0; height: 42px; padding: 0 10px; }
+:root[data-compact] .rit-ask { grid-template-columns: 1fr; width: 100%; padding: 10px 12px; }
+:root[data-compact] .rit-btns .btn { flex: 1; height: 40px; }
+
+/* upright: a slim bar on top, the dock along the bottom at a fixed height so the table never jumps */
+:root[data-compact="port"] .topbar { padding: 4px 6px 4px 10px; gap: 8px; }
+:root[data-compact="port"] .dock {
+  left: 0; right: 0; bottom: 0; min-height: 150px; padding: 8px 10px 10px; gap: 6px;
+  grid-template-columns: minmax(0, 1fr); align-content: end; border-top: 1px solid var(--glass-line);
+}
+:root[data-compact="port"] .hi-title { font-size: 19px; }
+:root[data-compact="port"] .odds { width: 104px; }
+:root[data-compact="port"] .sizing { gap: 6px; }
+:root[data-compact="port"] .presets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+:root[data-compact="port"] .preset { flex: 1 0 auto; height: 30px; }
+:root[data-compact="port"] .turn-ui { gap: 6px; }
+/* the shot clock floats just above the dock, in the table's empty bottom-right corner */
+:root[data-compact="port"] .clock {
+  position: absolute; right: 8px; bottom: calc(100% + 8px); padding: 5px 10px; border-radius: 99px;
+  background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+:root[data-compact="port"] .clock:empty { display: none; }
+:root[data-compact="port"] .clock .bk { margin-left: 5px; padding: 1px 6px; font-size: 12px; }
+:root[data-compact="port"] .clock .ta { display: none; }
+:root[data-compact] input[type="range"]::-webkit-slider-runnable-track { background: linear-gradient(90deg, var(--raise-2) var(--fill, 0%), color-mix(in srgb, var(--ink) 16%, transparent) var(--fill, 0%)); }
+:root[data-compact] input[type="range"]::-moz-range-track { background: linear-gradient(90deg, var(--raise-2) var(--fill, 0%), color-mix(in srgb, var(--ink) 16%, transparent) var(--fill, 0%)); }
+:root[data-compact="port"] .acts .act { height: 52px; }
+:root[data-compact="port"] .pre { height: 46px; }
+/* short phones: a tighter dock, and while the coach talks it stands in for the line under the hand name */
+@media (max-height: 700px) {
+  :root[data-compact="port"] .dock { min-height: 134px; padding: 6px 10px 8px; gap: 5px; }
+  :root[data-compact="port"] .hand-info:has(.coach:not([hidden])) .hi-sub { display: none; }
+  :root[data-compact="port"] .hi-title { font-size: 18px; }
+  :root[data-compact="port"] .turn-ui, :root[data-compact="port"] .sizing { gap: 5px; }
+  :root[data-compact="port"] .preset { height: 28px; }
+  :root[data-compact="port"] .step { width: 30px; height: 28px; }
+  :root[data-compact="port"] .raise-input { height: 30px; }
+  :root[data-compact="port"] input[type="range"] { height: 28px; }
+  :root[data-compact="port"] .acts .act { height: 48px; }
+  :root[data-compact="port"] .pre { height: 44px; }
+}
+
+/* sideways: one glass column on the right, the table takes the rest of the width and all the height */
+:root[data-compact="land"] { --side-w: clamp(212px, 30vw, 270px); }
+:root[data-compact="land"] .topbar { left: auto; right: 0; width: var(--side-w); height: 44px; padding: 4px 4px 4px 10px; gap: 6px; border-bottom: 0; border-left: 1px solid var(--glass-line); }
+:root[data-compact="land"] .brand { display: none; }
+:root[data-compact="land"] .table-info { gap: 8px; font-size: 14px; }
+:root[data-compact="land"] .table-info > :not(.ti-name):not(.conn) { display: none; }
+:root[data-compact="land"] .table-info .conn { font-size: 0; gap: 0; }
+:root[data-compact="land"] .tools { gap: 0; }
+:root[data-compact="land"] .tool { min-width: 32px; height: 34px; padding: 0 5px; }
+:root[data-compact="land"] .dock {
+  top: 44px; right: 0; bottom: 0; width: var(--side-w); min-height: 0; padding: 4px 10px 10px;
+  display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; gap: 8px; overflow-y: auto; border-left: 1px solid var(--glass-line);
+}
+:root[data-compact="land"] .hand-info { display: block; }
+:root[data-compact="land"] .hi-title { font-size: 19px; }
+:root[data-compact="land"] .hi-sub { font-size: 13px; line-height: 1.3; margin-top: 1px; }
+:root[data-compact="land"] .odds { max-width: none; width: auto; margin-top: 6px; }
+:root[data-compact="land"] .coach { font-size: 12.5px; padding: 5px 8px; margin-top: 6px; white-space: normal; }
+:root[data-compact] .coach .cx { display: none; }
+:root[data-compact] .coach .cs { display: inline; }
+:root[data-compact] .coach > b:first-child { display: inline; margin: 0; }
+:root[data-compact="land"] .controls { gap: 8px; margin-top: auto; }
+:root[data-compact="land"] .turn-ui { gap: 8px; }
+:root[data-compact="land"] .sizing { gap: 6px; }
+:root[data-compact="land"] .presets { flex-wrap: wrap; gap: 5px; }
+:root[data-compact="land"] .preset { height: 30px; font-size: 14px; }
+:root[data-compact="land"] .slider-row { gap: 5px; }
+:root[data-compact="land"] .step { width: 30px; flex: none; }
+:root[data-compact="land"] .raise-input { width: 58px; flex: none; }
+:root[data-compact="land"] .clock { text-align: left; }
+:root[data-compact="land"] .acts { gap: 6px; }
+:root[data-compact="land"] .acts .act { flex: 1 1 0; min-width: 0; height: 52px; padding: 0 4px; border-radius: 11px; }
+:root[data-compact="land"] .act .a-l { font-size: 16px; white-space: nowrap; }
+:root[data-compact="land"] .act .a-v { font-size: 13.5px; }
+:root[data-compact="land"] .pre-ui { flex-direction: column; }
+:root[data-compact="land"] .pre { justify-content: center; height: 44px; }
+:root[data-compact="land"] .idle-ui { font-size: 15px; }
+:root[data-compact="land"] .toasts { top: 10px; left: calc((100% - var(--side-w)) / 2); }
