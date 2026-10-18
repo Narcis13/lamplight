@@ -247,6 +247,35 @@ body.in-bg .app { visibility: hidden; }
   .bg-hint { font-size: 14px; }
 }
 
+/* ═════════════ wide screens: the board at full height, everything else in a column beside it ═════════════
+   Whenever the window is wider than it is tall (desktops, laptops, tablets held sideways) the player bars and
+   controls no longer stack above and below the board, so the board gets all the height there is. The room fills
+   the window without scrolling; .bg-main is the size container the board measures itself against. */
+@media (min-aspect-ratio: 5/4) {
+  :root:not([data-compact]) .bgroom { overflow: hidden; }
+  :root:not([data-compact]) .bg-room { height: 100%; min-height: 0; }
+  :root:not([data-compact]) .bg-main {
+    --pad: 12px; --side-w: clamp(270px, 24vw, 340px);
+    flex: 1 1 0; min-height: 0; max-width: none; padding: var(--pad); gap: 8px var(--pad); container-type: size;
+    grid-template-columns: auto var(--side-w); justify-content: center; align-items: stretch;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "board opp" "board side" "board ctrl" "board me";
+  }
+  :root:not([data-compact]) .bg-play { display: contents; }
+  :root:not([data-compact]) .bg-board {
+    grid-area: board; align-self: center;
+    width: min(100cqw - var(--side-w) - 3 * var(--pad), (100cqh - 2 * var(--pad)) * 980 / 720);
+  }
+  :root:not([data-compact]) .bg-player.top { grid-area: opp; }
+  :root:not([data-compact]) .bg-player:not(.top) { grid-area: me; }
+  :root:not([data-compact]) .bg-controls { grid-area: ctrl; }
+  :root:not([data-compact]) .bg-side { grid-area: side; position: static; height: auto; width: auto; max-width: none; margin: 0; min-height: 0; }
+  :root:not([data-compact]) .bg-hint { flex: 1 1 100%; }
+  :root:not([data-compact]) .bg-acts { width: 100%; }
+  :root:not([data-compact]) .bg-acts .btn { flex: 1; justify-content: center; padding: 0 12px; }
+  :root:not([data-compact]) .bg-score { min-width: 0; }
+}
+
 /* ═════════════ lobby: the game switch and board cards ═════════════ */
 .game-switch { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
 .game-switch button {
