@@ -10,12 +10,16 @@
    a move animates the checker that actually moved.
 
    You always see the board from your own side: your home board is
-   bottom right. People watching see it from white's side.
+   bottom right. People watching see it from white's side. On an
+   upright phone the whole board is turned a quarter clockwise and
+   stretched along its length to fill the screen (home board bottom
+   left, the tray at the bottom); `toBoard` turns touches back into
+   board units, and the SVG stretches with it.
    ════════════════════════════════════════════════════════════════════ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Fmt, PROFILES } from '../shared/engine.js';
 import { BAR, OFF, Turn, countOn, pointOf, indexOf, KIND_NAME } from '../shared/backgammon.js';
-import { hueOf } from './view.js';
+import { hueOf, compactMode } from './view.js';
 
 /* ───────────── geometry, in board units ───────────── */
 const FR = 18, PW = 66, BARW = 56, TRAY = 78;
@@ -149,7 +153,7 @@ function BoardSVG({ view, targets, sources, selected }) {
     tri.push(<text key={`l${n}`} className="pt-num" x={x0 + PW / 2} y={bottom ? H - 5 : 13}>{n}</text>);
   }
   return (
-    <svg className="bg-svg" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+    <svg className="bg-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <linearGradient id="bgWood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#6a4426" /><stop offset=".5" stopColor="#4d2f19" /><stop offset="1" stopColor="#3a2212" /></linearGradient>
         <radialGradient id="bgFelt" cx=".5" cy=".45" r=".75"><stop offset="0" stopColor="#2f8063" /><stop offset=".6" stopColor="#1f5f49" /><stop offset="1" stopColor="#123d2f" /></radialGradient>
@@ -196,8 +200,9 @@ function Board({ s, view, me, bg, app, turn, autoDone }) {
   }, [finished, autoDone, s]);
 
   const toBoard = e => {
-    const r = wrap.current.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    const r = wrap.current.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+    // an upright phone turns the board a quarter clockwise (bg.css): its left edge runs along the top of the screen
+    return compactMode() === 'port' ? { x: v * W, y: (1 - u) * H } : { x: u * W, y: v * H };
   };
   const send = (from, to) => { app.bgSend('move', { from, to }); setSel(null); };
   const clickAt = loc => {
@@ -413,20 +418,27 @@ function Controls({ s, me, bg, app, turn, autoDone, setAutoDone, onResign }) {
     <div className="bg-controls">
       <div className="bg-hint" aria-live="polite">{hint}</div>
       <div className="bg-acts">{main}</div>
-      {me != null && (
-        <div className="bg-opts">
-          <label className="bg-toggle"><input type="checkbox" checked={autoDone} onChange={e => setAutoDone(e.target.checked)} /> Auto-confirm moves</label>
-          {live && seat && !seat.away && <button className="btn small ghost" onClick={() => app.bgSend('sitOut')}>Sit out</button>}
-          {live && <button className="btn small ghost" onClick={onResign}>Resign</button>}
-        </div>
-      )}
+      <Opts s={s} me={me} app={app} autoDone={autoDone} setAutoDone={setAutoDone} onResign={onResign} />
+    </div>
+  );
+}
+
+/** Auto-confirm, sit out and resign: under your controls, or in the drawer on an upright phone. */
+function Opts({ s, me, app, autoDone, setAutoDone, onResign }) {
+  if (me == null) return null;
+  const seat = s.seats[me], live = s.phase !== 'idle' && s.phase !== 'over';
+  return (
+    <div className="bg-opts">
+      <label className="bg-toggle"><input type="checkbox" checked={autoDone} onChange={e => setAutoDone(e.target.checked)} /> Auto-confirm moves</label>
+      {live && seat && !seat.away && <button className="btn small ghost" onClick={() => app.bgSend('sitOut')}>Sit out</button>}
+      {live && <button className="btn small ghost" onClick={onResign}>Resign</button>}
     </div>
   );
 }
 
 /* ───────────── log & chat ───────────── */
 /** Beside the board on a wide screen; on a phone it slides over the board when you open it from the top bar. */
-function Side({ bg, app, open, onClose }) {
+function Side({ bg, app, open, onClose, opts }) {
   const [tab, setTab] = useState('log');
   const [text, setText] = useState('');
   const box = useRef(null);
@@ -457,6 +469,7 @@ function Side({ bg, app, open, onClose }) {
           <button className="btn" disabled={!text.trim()}>Send</button>
         </form>
       )}
+      {opts && <div className="bg-side-opts">{opts}</div>}
     </aside>
   );
 }
@@ -533,11 +546,13 @@ export function BgRoom({ bg, app }) {
       <main className="bg-main">
         <section className="bg-play" aria-label="The board">
           <PlayerBar s={s} seatIdx={1 - view} me={me} bg={bg} app={app} top />
-          <Board s={s} view={view} me={me} bg={bg} app={app} turn={turn} autoDone={autoDone} />
+          <div className="bg-stage"><Board s={s} view={view} me={me} bg={bg} app={app} turn={turn} autoDone={autoDone} /></div>
           <PlayerBar s={s} seatIdx={view} me={me} bg={bg} app={app} />
           <Controls s={s} me={me} bg={bg} app={app} turn={turn} autoDone={autoDone} setAutoDone={setAutoDone} onResign={() => setConfirm('resign')} />
         </section>
-        <Side bg={bg} app={app} open={sideOpen} onClose={() => setSideOpen(false)} />
+        {sideOpen && <div className="bg-scrim" onClick={() => setSideOpen(false)} />}
+        <Side bg={bg} app={app} open={sideOpen} onClose={() => setSideOpen(false)}
+          opts={me != null && <Opts s={s} me={me} app={app} autoDone={autoDone} setAutoDone={setAutoDone} onResign={() => { setSideOpen(false); setConfirm('resign'); }} />} />
       </main>
       {confirm === 'leave' && (
         <Confirm title="Leave the board?" yes="Leave" no="Keep playing" onNo={() => setConfirm(null)} onYes={() => { setConfirm(null); app.bgLeave(); }}>

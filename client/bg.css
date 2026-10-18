@@ -335,22 +335,66 @@ body.in-bg .app { visibility: hidden; }
 }
 :root[data-compact] .bg-side.open { transform: none; visibility: visible; transition: transform .3s cubic-bezier(.3, .8, .3, 1); }
 :root[data-compact] .bg-side-close { display: inline-flex; align-self: flex-end; margin: -4px -4px -6px 0; }
+.bg-scrim { display: none; }
+:root[data-compact] .bg-scrim { display: block; position: fixed; inset: 0; z-index: 59; background: rgba(0, 0, 0, .35); animation: bgScrim .3s ease both; }
+@keyframes bgScrim { from { opacity: 0; } }
 
-/* upright: the players and the board in the middle, your controls at the bottom near your thumb */
-:root[data-compact="port"] .bg-main { top: 46px; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
-:root[data-compact="port"] .bg-play { flex: 1 0 auto; gap: 6px; padding: 6px 0 8px; justify-content: center; }
-:root[data-compact="port"] .bg-controls, :root[data-compact="port"] .bg-player.top { margin-top: auto; }
-/* tall phones have room to spare under the board: the log and chat sit there instead of sliding over */
-@media (min-height: 780px) {
-  :root[data-compact="port"] .bg-play { flex: 0 0 auto; }
-  :root[data-compact="port"] .bg-controls { margin-top: 0; }
-  :root[data-compact="port"] .bg-side:not(.open) {
-    position: static; flex: 1 1 0; min-height: 110px; width: auto; margin: 0 8px 8px; padding: 8px 10px; transform: none; visibility: visible;
-    border-radius: 14px; border-width: 1px; border-color: var(--glass-line); background: var(--glass); box-shadow: none; transition: none;
-  }
-  :root[data-compact="port"] .bg-side:not(.open) .bg-side-close, :root[data-compact="port"] .bg-side-btn { display: none; }
+/* upright: both players in one slim row at the top, the board filling everything down to your controls.
+   Auto-confirm, sit out and resign live in the drawer, and the controls keep one height so the board never jumps. */
+:root[data-compact="port"] .bg-main { top: 46px; display: block; }
+:root[data-compact="port"] .bg-play {
+  height: 100%; display: grid; gap: 6px; padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "opp me" "stage stage" "ctrl ctrl";
 }
-:root[data-compact="port"] .bg-player, :root[data-compact="port"] .bg-controls { margin-left: 8px; margin-right: 8px; }
+:root[data-compact="port"] .bg-player.top { grid-area: opp; }
+:root[data-compact="port"] .bg-player:not(.top) { grid-area: me; }
+:root[data-compact="port"] .bg-controls { grid-area: ctrl; min-height: 112px; align-content: start; }
+:root[data-compact="port"] .bg-controls .bg-opts { display: none; }
+:root[data-compact="port"] .bg-player { min-height: 40px; padding: 4px 8px; gap: 6px; }
+:root[data-compact="port"] .bg-player .bg-av { display: none; }
+:root[data-compact="port"] .bg-chip { width: 14px; height: 14px; }
+:root[data-compact="port"] .bg-name b { font-size: 15px; }
+:root[data-compact="port"] .bg-name em { margin-left: 4px; padding: 1px 4px; font-size: 10px; }
+:root[data-compact="port"] .bg-name small { font-size: 11.5px; }
+:root[data-compact="port"] .bg-score { min-width: 0; }
+:root[data-compact="port"] .bg-score b { font-size: 16px; }
+:root[data-compact="port"] .bg-score b.house { font-size: 14px; }
+:root[data-compact="port"] .bg-score small { font-size: 11.5px; }
+:root[data-compact="port"] .bg-clock em { font-size: 13px; }
+:root[data-compact="port"] .bg-hint { min-height: calc(2 * 1.3em); }
+
+/* the board is wider than it is tall, so upright it turns a quarter clockwise and runs down the screen, edge to edge.
+   .bg-stage is the space it has; the board's unturned layout box is the stage's height by its width, so it stretches
+   along its length (by at most half again) to fill it. Checkers stay round: they size by the board's short side and
+   may overlap a little in a stack. Text on the board turns back upright. */
+.bg-stage { display: contents; }
+:root[data-compact="port"] .bg-stage { grid-area: stage; display: block; position: relative; min-height: 0; margin: 0 -8px; container-type: size; }
+:root[data-compact="port"] .bg-board {
+  position: absolute; left: 50%; top: 50%; aspect-ratio: auto; container-type: normal; box-shadow: none;
+  width: min(100cqh, 100cqw * 980 / 720 * 1.5); height: 100cqw;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+:root[data-compact="port"] .bg-ck, :root[data-compact="port"] .bg-target { width: min(60 / 980 * 100%, 60 / 720 * 100cqw * 1.15); }
+:root[data-compact="port"] .bg-target.off { width: min(64 / 980 * 100%, 64 / 720 * 100cqw * 1.15); }
+:root[data-compact="port"] .bg-cube { width: min(48 / 980 * 100%, 48 / 720 * 100cqw * 1.15); font-size: clamp(12px, 4cqw, 20px); }
+:root[data-compact="port"] .bg-count, :root[data-compact="port"] .bg-cube, :root[data-compact="port"] .bg-note, :root[data-compact="port"] .bg-wait {
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+:root[data-compact="port"] .bg-count { font-size: clamp(12px, 3.6cqw, 18px); }
+:root[data-compact="port"] .bg-note { font-size: clamp(12px, 3.4cqw, 16px); }
+:root[data-compact="port"] .bg-wait { font-size: clamp(14px, 4.2cqw, 20px); }
+:root[data-compact="port"] .bg-result { transform: translate(-50%, -50%) rotate(-90deg); animation-name: bgPopUpright; min-width: 0; width: max-content; max-width: 90cqh; }
+:root[data-compact="port"] .bg-result small, :root[data-compact="port"] .bg-result em { font-size: 13px; }
+:root[data-compact="port"] .bg-result b { font-size: clamp(22px, 7cqw, 32px); }
+:root[data-compact="port"] .bg-result span { font-size: 16px; }
+@keyframes bgPopUpright { from { opacity: 0; transform: translate(-50%, -50%) rotate(-90deg) scale(.85); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-90deg) scale(1); } }
+:root[data-compact="port"] .bg-svg .pt-num { transform-box: fill-box; transform-origin: center; transform: rotate(-90deg); }
+
+/* the drawer carries the options the upright controls leave out */
+.bg-side-opts { display: none; }
+:root[data-compact="port"] .bg-side-opts { display: block; }
+:root[data-compact="port"] .bg-side-opts .bg-opts { border-top: 1px solid var(--line); padding-top: 10px; }
 
 /* sideways: the board on the left at full height, a glass column on the right */
 :root[data-compact="land"] .bg-main { display: block; }
