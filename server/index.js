@@ -1,8 +1,8 @@
 /* ════════════════════════════════════════════════════════════════════
    LAMPLIGHT · server
    Bun.serve: the client bundle (HTML import), a small JSON API and one
-   WebSocket endpoint at /ws for the lobby, the poker tables and the
-   backgammon boards (both kinds sit in the same lobby list).
+   WebSocket endpoint at /ws for the lobby, the poker tables, the
+   backgammon boards and the gem duels (all in the same lobby list).
 
    Identity: the browser keeps a secret account key in localStorage and
    sends it when it connects. The account id is a hash of that key, so
@@ -11,8 +11,10 @@
    ════════════════════════════════════════════════════════════════════ */
 import { cleanName, own, SPEEDS, STAKES, SNG } from '../shared/engine.js';
 import { BG } from '../shared/backgammon.js';
+import { M3 } from '../shared/match3.js';
 import { Table } from './table.js';
 import { BgTable } from './bgtable.js';
+import { M3Table } from './m3table.js';
 import { DB } from './db.js';
 import homepage from '../client/index.html';
 
@@ -41,6 +43,7 @@ class Lobby {
   create(opts) {
     if (this.tables.size >= MAX_TABLES) return null;
     if (opts.game === 'bg') return this.createBg(opts);
+    if (opts.game === 'm3') return this.createM3(opts);
     const speed = opts.speed === 'test' && !ALLOW_TEST_SPEED ? 'normal' : opts.speed;
     const mode = opts.mode === 'sng' ? 'sng' : 'cash';
     const t = new Table(this, {
@@ -71,6 +74,20 @@ class Lobby {
       name: opts.builtIn ? String(opts.name) : cleanName(opts.name, 24, mode === 'match' ? `Match ${this.seq + 1}` : `Board ${this.seq + 1}`),
       mode, stake: Number(opts.stake), entry: Number(opts.entry), matchTo: Number(opts.matchTo),
       speed: own(BG.speeds, speed) ? speed : 'normal', bot: opts.bot !== false,
+      skill: ['casual', 'regular', 'sharp'].includes(opts.skill) ? opts.skill : 'regular',
+      permanent: !!opts.permanent, db,
+    });
+    this.tables.set(t.id, t);
+    this.changed();
+    return t;
+  }
+  /** A gem duel: a match-3 board for two, for an entry (or for free). */
+  createM3(opts) {
+    const speed = opts.speed === 'test' && !ALLOW_TEST_SPEED ? 'normal' : opts.speed;
+    const t = new M3Table(this, {
+      id: this.newId(),
+      name: opts.builtIn ? String(opts.name) : cleanName(opts.name, 24, `Duel ${this.seq + 1}`),
+      format: opts.format, entry: Number(opts.entry), speed: own(M3.speeds, speed) ? speed : 'normal', bot: opts.bot !== false,
       skill: ['casual', 'regular', 'sharp'].includes(opts.skill) ? opts.skill : 'regular',
       permanent: !!opts.permanent, db,
     });
@@ -143,6 +160,10 @@ lobby.create({ game: 'bg', name: 'The Backgammon Parlor', mode: 'money', stake: 
 lobby.create({ game: 'bg', name: 'Tavla House', mode: 'match', matchTo: 5, entry: 500, speed: 'normal', bot: true, skill: 'sharp', permanent: true, builtIn: true });
 lobby.create({ game: 'bg', name: 'Open Board', mode: 'money', stake: 10, speed: 'normal', bot: false, permanent: true, builtIn: true });
 lobby.create({ game: 'bg', name: 'Friendly Match', mode: 'match', matchTo: 3, entry: 100, speed: 'relaxed', bot: false, permanent: true, builtIn: true });
+lobby.create({ game: 'm3', name: 'The Gem Parlor', format: 'classic', entry: 100, speed: 'normal', bot: true, skill: 'regular', permanent: true, builtIn: true });
+lobby.create({ game: 'm3', name: 'Sprint Arcade', format: 'sprint', entry: 0, speed: 'turbo', bot: true, skill: 'casual', permanent: true, builtIn: true });
+lobby.create({ game: 'm3', name: 'Open Duel', format: 'classic', entry: 100, speed: 'normal', bot: false, permanent: true, builtIn: true });
+lobby.create({ game: 'm3', name: 'Friendly Duel', format: 'classic', entry: 0, speed: 'relaxed', bot: false, permanent: true, builtIn: true });
 
 const send = (ws, m) => { try { ws.send(typeof m === 'string' ? m : JSON.stringify(m)); } catch { /* closed */ } };
 
@@ -173,7 +194,7 @@ function onMessage(ws, raw) {
       ws.unsubscribe('lobby');
       t.attach(ws);
       if (m.sit) {
-        const err = t.sit(ws, Number.isInteger(m.seat) ? m.seat : -1);
+        const err = t.sit(ws, Number.isInteger(m.seat) ? m.seat : -1, m.booster);
         if (err) send(ws, { e: 'error', msg: err });
       }
       return;

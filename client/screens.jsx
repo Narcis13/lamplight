@@ -409,6 +409,42 @@ function BgRecord({ bg }) {
   );
 }
 
+const M3_KIND = { win: 'Won on points', landslide: 'Landslide', draw: 'Draw', forfeit: 'Forfeit' };
+
+function M3Record({ m3 }) {
+  if (!m3 || !m3.games) {
+    return (
+      <section className="pf-box pf-sng" aria-labelledby="pfM3T">
+        <header className="pf-box-head"><h3 id="pfM3T">Gem Duel</h3></header>
+        <div className="pf-empty-row">
+          <span className="pf-empty-art sm" aria-hidden="true">💎</span>
+          <p>No gem duels yet. Try the Sprint Arcade for free, or open a duel and send a friend the link.</p>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className="pf-box pf-sng" aria-labelledby="pfM3T">
+      <header className="pf-box-head"><h3 id="pfM3T">Gem Duel</h3><span className="pf-note">{m3.specials} specials · {m3.combos} combos · {m3.extras} extra moves</span></header>
+      <div className="pf-mini-tiles">
+        <div><b className="num">{m3.wins}-{m3.games - m3.wins - m3.draws}{m3.draws ? `-${m3.draws}` : ''}</b><span>Won-lost{m3.draws ? '-drawn' : ''}</span></div>
+        <div><b className="num">{m3.landslides}</b><span>Landslides</span></div>
+        <div><b className="num">{m3.best}</b><span>Best score</span></div>
+        <div><b className={`num ${tone(m3.net)}`}>{signedUsd(m3.net) || '$0'}</b><span>Entries won</span></div>
+      </div>
+      <ol className="pf-sng-list">
+        {(m3.recent || []).map(g => (
+          <li key={g.id}>
+            <span className={`pf-place ${g.result === 'won' ? 'p1' : ''}`} aria-label={g.result}>{g.result === 'won' ? 'W' : g.result === 'draw' ? 'D' : 'L'}</span>
+            <span className="pf-sng-n">vs {g.opponent}<small>{M3_KIND[g.kind] || g.kind} · {g.mine}-{g.theirs} · {timeAgo(g.at)}</small></span>
+            <b className={`num ${tone(g.result === 'won' ? 1 : g.result === 'draw' ? 0 : -1)}`}>{g.entry ? (g.result === 'draw' ? 'even' : signedUsd(g.result === 'won' ? g.entry : -g.entry)) : `${g.mine}`}</b>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export function Profile({ data, mine = false, onReplay, name: nameProp }) {
   if (!data) {
     return <div className="pf pf-loading" aria-busy="true"><div className="pf-skel" /><div className="pf-skel" /><div className="pf-skel tall" /></div>;
@@ -456,6 +492,7 @@ export function Profile({ data, mine = false, onReplay, name: nameProp }) {
       <div className="pf-cols">
         <SngRecord stats={st} list={data.sng} />
         <BgRecord bg={data.bg} />
+        <M3Record m3={data.m3} />
         {data.reads ? <BotReads reads={data.reads} /> : !mine ? null : (
           <section className="pf-box pf-reads" aria-labelledby="pfReadsT2">
             <header className="pf-box-head"><h3 id="pfReadsT2">How the bots read you</h3></header>
@@ -472,7 +509,7 @@ export function Profile({ data, mine = false, onReplay, name: nameProp }) {
 
 /* ───────────── leaderboard ───────────── */
 const BOARDS = [
-  ['worth', 'Richest'], ['winners', 'Top winners'], ['pots', 'Biggest pots'], ['sng', 'Sit & Go'], ['bg', 'Backgammon'], ['bots', 'The House'],
+  ['worth', 'Richest'], ['winners', 'Top winners'], ['pots', 'Biggest pots'], ['sng', 'Sit & Go'], ['bg', 'Backgammon'], ['m3', 'Gem Duel'], ['bots', 'The House'],
 ];
 const BOARD_NOTE = {
   worth: 'Bankroll plus chips on tables.',
@@ -480,6 +517,7 @@ const BOARD_NOTE = {
   pots: 'The single biggest cash pot each player has dragged.',
   sng: 'Sit & Go wins. Ties go to whoever needed fewer tournaments.',
   bg: 'Backgammon games won, people and house bots alike. Ties go to whoever needed fewer games.',
+  m3: 'Gem duels won, people and house bots alike. Ties go to whoever needed fewer duels.',
   bots: 'The regulars you are up against, and how they are doing against everyone. Beat them.',
 };
 
@@ -523,10 +561,12 @@ export function Leaderboard({ data, myId, onProfile }) {
         </li>
       );
     }) : null;
-  } else if (board === 'bg') {
+  } else if (board === 'bg' || board === 'm3') {
     body = rows.length ? rows.map((r, i) => {
       const P = r.bot ? PROFILES[r.bot] : null;
-      const sub = `${r.wins}-${r.games - r.wins}${r.gammons + r.backgammons ? ` · ${r.gammons + r.backgammons} gammons` : ''}${r.matches ? ` · ${r.matches_won}/${r.matches} matches` : ''}`;
+      const sub = board === 'm3'
+        ? `${r.wins}-${r.games - r.wins - r.draws}${r.draws ? `-${r.draws}` : ''}${r.landslides ? ` · ${r.landslides} landslides` : ''} · best ${r.best}`
+        : `${r.wins}-${r.games - r.wins}${r.gammons + r.backgammons ? ` · ${r.gammons + r.backgammons} gammons` : ''}${r.matches ? ` · ${r.matches_won}/${r.matches} matches` : ''}`;
       if (P) {
         return (
           <li key={r.id} className="bot">
@@ -558,11 +598,11 @@ export function Leaderboard({ data, myId, onProfile }) {
       </div>
       <p className="lb-note">{BOARD_NOTE[board]}</p>
       {body ? <ol className={`lb-list${board === 'bots' ? ' house' : ''}`}>{body}</ol> : (
-        <div className="pf-empty-row lb-empty"><span className="pf-empty-art sm" aria-hidden="true">{board === 'bots' ? '🎰' : board === 'bg' ? '🎲' : '🪑'}</span>
-          <p>{board === 'bots' ? 'The house has not played a hand yet.' : board === 'sng' ? 'No Sit & Go has finished yet. Be the first name here.' : board === 'bg' ? 'No backgammon games yet. The board is set up and waiting.' : 'Nobody here yet. Sit down and claim the top spot.'}</p></div>
+        <div className="pf-empty-row lb-empty"><span className="pf-empty-art sm" aria-hidden="true">{board === 'bots' ? '🎰' : board === 'bg' ? '🎲' : board === 'm3' ? '💎' : '🪑'}</span>
+          <p>{board === 'bots' ? 'The house has not played a hand yet.' : board === 'sng' ? 'No Sit & Go has finished yet. Be the first name here.' : board === 'bg' ? 'No backgammon games yet. The board is set up and waiting.' : board === 'm3' ? 'No gem duels yet. The gems are polished and waiting.' : 'Nobody here yet. Sit down and claim the top spot.'}</p></div>
       )}
       <p className="lb-totals num">
-        {(t.hands || 0).toLocaleString('en-US')} hands dealt · {(t.players || 0).toLocaleString('en-US')} players · {(t.tournaments || 0).toLocaleString('en-US')} tournaments · {(t.bgGames || 0).toLocaleString('en-US')} backgammon games
+        {(t.hands || 0).toLocaleString('en-US')} hands dealt · {(t.players || 0).toLocaleString('en-US')} players · {(t.tournaments || 0).toLocaleString('en-US')} tournaments · {(t.bgGames || 0).toLocaleString('en-US')} backgammon games · {(t.m3Games || 0).toLocaleString('en-US')} gem duels
       </p>
     </div>
   );

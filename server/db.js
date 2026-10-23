@@ -75,6 +75,18 @@ CREATE TABLE IF NOT EXISTS bg_stats (
   points_lost INTEGER NOT NULL DEFAULT 0, net INTEGER NOT NULL DEFAULT 0, matches INTEGER NOT NULL DEFAULT 0,
   matches_won INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS m3_games (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, table_id TEXT, table_name TEXT, format TEXT, ended_at INTEGER,
+  a_id TEXT, a_name TEXT, b_id TEXT, b_name TEXT, a_score INTEGER, b_score INTEGER, winner INTEGER, kind TEXT, entry INTEGER
+);
+CREATE INDEX IF NOT EXISTS m3_a ON m3_games (a_id, id DESC);
+CREATE INDEX IF NOT EXISTS m3_b ON m3_games (b_id, id DESC);
+CREATE TABLE IF NOT EXISTS m3_stats (
+  player_id TEXT PRIMARY KEY, name TEXT, games INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0,
+  draws INTEGER NOT NULL DEFAULT 0, landslides INTEGER NOT NULL DEFAULT 0, points INTEGER NOT NULL DEFAULT 0,
+  best INTEGER NOT NULL DEFAULT 0, net INTEGER NOT NULL DEFAULT 0, specials INTEGER NOT NULL DEFAULT 0,
+  combos INTEGER NOT NULL DEFAULT 0, extras INTEGER NOT NULL DEFAULT 0
+);
 `;
 
 const json = s => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
@@ -140,11 +152,22 @@ export class DB {
       ON CONFLICT (player_id) DO UPDATE SET name = excluded.name, matches = matches + 1, matches_won = matches_won + excluded.matches_won`);
     this.q.bgOf = q('SELECT * FROM bg_stats WHERE player_id = $id');
     this.q.bgRecent = q('SELECT * FROM bg_games WHERE white_id = $id OR black_id = $id ORDER BY id DESC LIMIT 12');
+    this.q.m3Game = q(`INSERT INTO m3_games (table_id, table_name, format, ended_at, a_id, a_name, b_id, b_name, a_score, b_score, winner, kind, entry)
+      VALUES ($tid, $tname, $format, $now, $aid, $aname, $bid, $bname, $as, $bs, $winner, $kind, $entry)`);
+    this.q.m3Stat = q(`INSERT INTO m3_stats (player_id, name, games, wins, draws, landslides, points, best, net, specials, combos, extras)
+      VALUES ($id, $name, 1, $win, $draw, $land, $pts, $pts, $net, $specials, $combos, $extras)
+      ON CONFLICT (player_id) DO UPDATE SET name = excluded.name, games = games + 1, wins = wins + excluded.wins,
+        draws = draws + excluded.draws, landslides = landslides + excluded.landslides, points = points + excluded.points,
+        best = MAX(best, excluded.best), net = net + excluded.net, specials = specials + excluded.specials,
+        combos = combos + excluded.combos, extras = extras + excluded.extras`);
+    this.q.m3Of = q('SELECT * FROM m3_stats WHERE player_id = $id');
+    this.q.m3Recent = q('SELECT * FROM m3_games WHERE a_id = $id OR b_id = $id ORDER BY id DESC LIMIT 12');
     this.tx = {
       hand: this.db.transaction((rec, meta) => this._recordHand(rec, meta)),
       tourney: this.db.transaction(t => this._recordTournament(t)),
       bgGame: this.db.transaction(g => this._recordBgGame(g)),
       bgMatch: this.db.transaction(m => this._recordBgMatch(m)),
+      m3Match: this.db.transaction(m => this._recordM3Match(m)),
     };
   }
   close() { try { this.db.close(); } catch { /* already closed */ } }
@@ -407,6 +430,50 @@ export class DB {
     };
   }
 
+  /* ───────────── gem duel ───────────── */
+  /** Saves a finished match. Seats are { id, name, kind } (bots as 'bot:<key>'). Returns unlocked achievements. */
+  recordM3Match(m) { return this.tx.m3Match(m); }
+  _recordM3Match({ tableId, tableName, format, entry, seats, scores, winner, kind, stats }) {
+    const [a, b] = seats;
+    this.q.m3Game.run({
+      tid: tableId, tname: tableName, format, now: Date.now(), aid: a?.id ?? null, aname: a?.name ?? '', bid: b?.id ?? null, bname: b?.name ?? '',
+      as: scores[0], bs: scores[1], winner, kind, entry,
+    });
+    const unlocked = [];
+    seats.forEach((s, i) => {
+      if (!s) return;
+      const won = winner === i, st = stats[i];
+      this.q.m3Stat.run({
+        id: s.id, name: s.name, win: won ? 1 : 0, draw: winner === -1 ? 1 : 0, land: won && kind === 'landslide' ? 1 : 0, pts: scores[i],
+        net: winner === -1 ? 0 : won ? entry : -entry, specials: st.specials, combos: st.combos, extras: st.extras,
+      });
+      if (s.kind !== 'human') return;
+      const keys = [];
+      if (won) keys.push('m3_first');
+      if (won && kind === 'landslide') keys.push('m3_landslide');
+      if (st.combos > 0) keys.push('m3_combo');
+      if (scores[i] >= 200) keys.push('m3_score');
+      for (const key of keys) if (this.unlock(s.id, key)) unlocked.push({ pid: s.id, key });
+    });
+    return unlocked;
+  }
+  /** One player's gem duel record and last few matches, or null if they have never played. */
+  m3Record(id) {
+    const r = this.q.m3Of.get({ id });
+    const recent = this.q.m3Recent.all({ id }).map(g => {
+      const seat = g.a_id === id ? 0 : 1, mine = seat === 0 ? g.a_score : g.b_score, theirs = seat === 0 ? g.b_score : g.a_score;
+      return {
+        id: g.id, table: g.table_name, at: g.ended_at, format: g.format, kind: g.kind, entry: g.entry, mine, theirs,
+        result: g.winner === -1 ? 'draw' : g.winner === seat ? 'won' : 'lost', opponent: seat === 0 ? g.b_name : g.a_name,
+      };
+    });
+    if (!r && !recent.length) return null;
+    return {
+      games: r?.games || 0, wins: r?.wins || 0, draws: r?.draws || 0, landslides: r?.landslides || 0, points: r?.points || 0,
+      best: r?.best || 0, net: r?.net || 0, specials: r?.specials || 0, combos: r?.combos || 0, extras: r?.extras || 0, recent,
+    };
+  }
+
   /* ───────────── profile & leaderboards ───────────── */
   profile(id) {
     const r = this.q.get.get({ id });
@@ -428,7 +495,7 @@ export class DB {
       },
       reads: json(r.reads),
       achievements: this.q.achOf.all({ pid: id }),
-      graph, recent, sng: this.q.sngHistory.all({ pid: id }), bg: this.bgRecord(id),
+      graph, recent, sng: this.q.sngHistory.all({ pid: id }), bg: this.bgRecord(id), m3: this.m3Record(id),
     };
   }
   leaderboard() {
@@ -444,7 +511,10 @@ export class DB {
       bg: this.db.query(`SELECT s.player_id AS id, COALESCE(p.name, s.name) AS name, s.games, s.wins, s.gammons, s.backgammons, s.net, s.matches, s.matches_won,
         CASE WHEN s.player_id LIKE 'bot:%' THEN substr(s.player_id, 5) ELSE NULL END AS bot
         FROM bg_stats s LEFT JOIN players p ON p.id = s.player_id WHERE s.games > 0 ORDER BY s.wins DESC, s.games ASC LIMIT 10`).all(),
-      totals: this.db.query('SELECT (SELECT COUNT(*) FROM hands) AS hands, (SELECT COUNT(*) FROM players) AS players, (SELECT COUNT(*) FROM tournaments) AS tournaments, (SELECT COUNT(*) FROM bg_games) AS bgGames').get(),
+      m3: this.db.query(`SELECT s.player_id AS id, COALESCE(p.name, s.name) AS name, s.games, s.wins, s.draws, s.landslides, s.best, s.net,
+        CASE WHEN s.player_id LIKE 'bot:%' THEN substr(s.player_id, 5) ELSE NULL END AS bot
+        FROM m3_stats s LEFT JOIN players p ON p.id = s.player_id WHERE s.games > 0 ORDER BY s.wins DESC, s.games ASC LIMIT 10`).all(),
+      totals: this.db.query('SELECT (SELECT COUNT(*) FROM hands) AS hands, (SELECT COUNT(*) FROM players) AS players, (SELECT COUNT(*) FROM tournaments) AS tournaments, (SELECT COUNT(*) FROM bg_games) AS bgGames, (SELECT COUNT(*) FROM m3_games) AS m3Games').get(),
     };
   }
 }
