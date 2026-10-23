@@ -207,11 +207,14 @@ body.in-m3 .app { visibility: hidden; }
 .m3-how { display: flex; flex-direction: column; gap: 8px; padding-left: 18px; font-size: 14.5px; line-height: 1.4; color: var(--ink-2); }
 .m3-how b { color: var(--ink); }
 /* three games side by side on a phone: icon over name, centred */
-@media (max-width: 560px) {
-  .game-switch { gap: 6px; }
-  .game-switch button { grid-template-columns: 1fr; grid-template-rows: auto auto auto; justify-items: center; text-align: center; row-gap: 3px; padding: 9px 4px; font-size: 16px; white-space: nowrap; }
-  .game-switch .gs-icon { grid-row: auto; font-size: 20px; }
-  .game-switch button small { grid-column: auto; font-size: 12px; }
+@media (max-width: 560px) { /* (scoped to the lobby to beat bg.css, which the bundler may load after this file) */
+  .lobby-inner .game-switch { gap: 6px; flex-wrap: nowrap; }
+  .lobby-inner .game-switch button {
+    flex: 1 1 0; min-width: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; justify-items: center;
+    text-align: center; row-gap: 3px; padding: 9px 4px; font-size: 16px; white-space: nowrap;
+  }
+  .lobby-inner .game-switch .gs-icon { grid-row: auto; font-size: 20px; }
+  .lobby-inner .game-switch button small { grid-column: auto; font-size: 12px; }
 }
 
 /* ═════════════ middling screens ═════════════ */
@@ -269,13 +272,18 @@ body.in-m3 .app { visibility: hidden; }
 :root[data-compact] .m3-side.open { transform: none; visibility: visible; transition: transform .3s cubic-bezier(.3, .8, .3, 1); }
 :root[data-compact] .m3-side-close { display: inline-flex; align-self: flex-end; margin: -4px -4px -6px 0; }
 
-/* upright: them, the board (full width), you, your controls */
+/* upright: them, the board (full width), you, your controls, all hugging the board in the middle of the screen.
+   The board is as wide as the screen unless the screen is too short for that, then it shrinks to fit. */
 :root[data-compact="port"] .m3-main { top: 46px; }
 :root[data-compact="port"] .m3-play {
   width: 100%; min-width: 0; height: 100%; margin: 0; gap: 6px; padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-columns: minmax(0, 1fr);
+  display: grid; grid-template-rows: auto auto auto auto; grid-template-columns: minmax(0, 1fr); align-content: center;
 }
-:root[data-compact="port"] .m3-stage { margin: 0 -8px; width: calc(100% + 16px); aspect-ratio: auto; min-height: 0; container-type: size; }
+:root[data-compact="port"] .m3-stage {
+  margin: 0 -8px; width: calc(100% + 16px); aspect-ratio: auto; container-type: size;
+  height: min(100vw, 100dvh - 46px - 268px - env(safe-area-inset-bottom, 0px));
+}
+:root[data-compact] .m3-topbar .table-info .ti-hand { display: inline; white-space: nowrap; }
 :root[data-compact="port"] .m3-board { inset: 0; margin: auto; width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); }
 :root[data-compact="port"] .m3-curtain { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); inset: 0; margin: auto; border-radius: 0; }
 :root[data-compact="port"] .m3-banner b { font-size: clamp(30px, 10cqw, 52px); }

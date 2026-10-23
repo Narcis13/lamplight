@@ -42,14 +42,15 @@ function bestHint(cells) {
   return best;
 }
 
+/** The time now, re-rendering every `ms` while `active` (the time itself is read fresh on every render). */
 function useNow(active, ms = 250) {
-  const [now, setNow] = useState(Date.now());
+  const [, setTick] = useState(0);
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => setNow(Date.now()), ms);
+    const t = setInterval(() => setTick(x => x + 1), ms);
     return () => clearInterval(t);
   }, [active, ms]);
-  return now;
+  return Date.now();
 }
 /** A number that counts up to its target instead of jumping. */
 function useTween(target, ms = 650) {
@@ -533,7 +534,7 @@ export function M3Room({ m3, app }) {
     return () => document.removeEventListener('keydown', onKey);
   });
 
-  const nextLeft = latest && latest.nextIn != null && m3.stateAt ? Math.max(0, Math.ceil((latest.nextIn - (now - m3.stateAt)) / 1000)) : 0;
+  const nextLeft = m3.nextAt ? Math.max(0, Math.ceil((m3.nextAt - now) / 1000)) : 0;
 
   const seated = me != null;
   const leave = () => (seated && live(m3.s) ? setConfirm('leave') : app.m3Leave());
@@ -552,7 +553,7 @@ export function M3Room({ m3, app }) {
           {s && <PlayerCard s={s} seatIdx={opp} me={me} view={view} refs={refs} bubble={bubbles[opp]} clockLeft={clockLeft} cls="m3-them" />}
           <div className="m3-stage">
             <div className="m3-board" ref={host} />
-            {s && !live(s) && <Curtain s={s} me={me} view={view} app={app} m3={m3} nextLeft={nextLeft} />}
+            {s && (s.phase === 'idle' || (s.phase === 'over' && s.result)) && <Curtain s={s} me={me} view={view} app={app} m3={m3} nextLeft={nextLeft} />}
             <Banner b={banner} />
             {!s && <div className="m3-loading">Setting up the board…</div>}
           </div>

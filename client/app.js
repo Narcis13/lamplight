@@ -180,12 +180,14 @@ export class App {
     switch (m.e) {
       case 'm3Snap':
         b.s = m.s; b.me = m.me; b.pending = m.me != null ? null : m.pending; b.log = m.log || []; b.stateAt = Date.now();
+        b.nextAt = m.s.nextIn != null ? b.stateAt + m.s.nextIn : 0;
         b.feed = []; b.snapNo++;
         document.title = this.baseTitle();
         this.renderM3();
         return true;
       case 'm3': {
         b.s = m.s; b.stateAt = Date.now(); b.lastAnim = animMs(m.ev); // the turn clock stands still while that plays
+        b.nextAt = m.s.nextIn != null ? b.stateAt + m.s.nextIn : 0;
         const mine = m.s.seats.findIndex(x => x && x.kind === 'human' && this.myId && x.id === this.myId);
         if (b.me != null && mine < 0) b.me = null;
         if (b.pending != null && mine >= 0) { b.me = mine; b.pending = null; }
