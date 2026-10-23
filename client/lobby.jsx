@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { PROFILES, STAKES, SNG, Fmt } from '../shared/engine.js';
 import { BG } from '../shared/backgammon.js';
 import { M3, BOOSTERS } from '../shared/match3.js';
+import { M3Manual } from './m3help.jsx';
 import { hueOf } from './view.js';
 import { Profile, Leaderboard } from './screens.jsx';
 
@@ -354,6 +355,7 @@ export function Lobby({ state, app }) {
   const watch = id => { commit(); app.join(id, false); };
   const host = location.port ? `${location.hostname}:${location.port}` : location.hostname;
   const bankroll = state.wallet ? state.wallet.bankroll : null;
+  const [guide, setGuide] = useState(false); // the gem duel's how-to-play
   const gameOf = t => (t.game === 'bg' || t.game === 'm3' ? t.game : 'poker');
   const [game, setGameState] = useState(['bg', 'm3'].includes(app.settings.lobbyGame) ? app.settings.lobbyGame : 'poker');
   const setGame = g => { setGameState(g); app.settings.lobbyGame = g; app.save(); };
@@ -408,6 +410,7 @@ export function Lobby({ state, app }) {
               <div className="sec-head">
                 <h2 id="m3Title">Gem Duel</h2>
                 <span className="sec-sub">One board, two players, turn by turn. Match gems, build specials, charge your booster, outscore them</span>
+                <button className="btn small m3-guide-btn" onClick={() => setGuide(true)}><span className="q" aria-hidden="true">?</span>How to play</button>
               </div>
               <div className="tables">
                 {duels.length === 0 && <p className="empty-tables">No duels open. Open one on the right.</p>}
@@ -426,6 +429,7 @@ export function Lobby({ state, app }) {
                 <li><b>Your colour charges your booster.</b> The blue gems are yours, the red ones theirs: take theirs to slow them down. Boosters and perks never cost a move.</li>
                 <li><b>Boosters:</b> {Object.values(BOOSTERS).map(b => b.name).join(', ')}. Pick yours before the match.</li>
               </ul>
+              <button className="btn primary m3-guide-btn" onClick={() => setGuide(true)}><span className="q" aria-hidden="true">?</span>Read the full guide for beginners</button>
             </section>
           </div>
           <CreateDuel bankroll={bankroll} disabled={!state.connected} onCreate={opts => { commit(); if (!name.trim()) { app.lobby.error = 'Pick a name first.'; app.renderLobby(); return; } app.createTable(opts); }} />
@@ -501,6 +505,7 @@ export function Lobby({ state, app }) {
             : <p className="empty-tables">Loading your profile…</p>}
         </section>
       )}
+      {guide && <M3Manual onClose={() => setGuide(false)} />}
     </div>
   );
 }

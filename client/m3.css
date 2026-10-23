@@ -321,3 +321,101 @@ body.in-m3 .app { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .m3-banner, .m3-result, .m3-bubble, .m3-boost.charged:not(:disabled), .m3-meter.ready .m3-bicon { animation-duration: .01s; animation-iteration-count: 1; }
 }
+
+/* ═════════════ how to play ═════════════
+   A sheet over everything with a sticky header and a row of section chips; full screen on a phone.
+   The little boards use the gems from the real board on a slice of its midnight tray. */
+.m3h-wrap {
+  --mine: #4aa8ff; --mine-2: #1f5fd1; --theirs: #ff5a6e; --theirs-2: #c21f3c; --gold: #f2cf7a; /* as in the room: the guide also opens from the lobby */
+  position: fixed; inset: 0; z-index: 75; display: grid; place-items: center; padding: 3vh 16px;
+  background: rgba(8, 10, 16, .55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: m3Fade .25s ease both;
+}
+.m3h {
+  width: min(100%, 780px); max-height: 94dvh; overflow-y: auto; overscroll-behavior: contain; outline: none;
+  border-radius: 20px; background: var(--panel-solid); color: var(--ink); box-shadow: var(--shadow); border: 1px solid var(--line);
+  animation: m3Pop .3s cubic-bezier(.2, .9, .3, 1.15) both;
+}
+.m3h-head { position: sticky; top: 0; z-index: 2; background: var(--panel-solid); border-bottom: 1px solid var(--line); }
+.m3h-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 8px; }
+.m3h-head small { font: 600 12px/1 'Barlow Condensed', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--brass); }
+.m3h-head h2 { font: italic 600 30px/1.1 'Fraunces', serif; }
+.m3h-toc { display: flex; gap: 6px; padding: 2px 20px 10px; overflow-x: auto; scrollbar-width: none; }
+.m3h-toc::-webkit-scrollbar { display: none; }
+.m3h-toc button { flex: none; padding: 6px 11px; border-radius: 999px; background: var(--field); color: var(--ink-2); font: 600 14px/1 'Barlow Condensed', sans-serif; white-space: nowrap; }
+.m3h-toc button:hover { color: var(--ink); background: var(--raised); }
+.m3h-body { padding: 4px 22px 24px; font: 400 15.5px/1.55 'Barlow', sans-serif; }
+.m3h-body section { padding: 18px 0 6px; scroll-margin-top: 104px; }
+.m3h-body section + section { border-top: 1px solid var(--line); }
+.m3h-body h3 { font: italic 600 22px/1.2 'Fraunces', serif; margin-bottom: 8px; }
+.m3h-body p { margin: 6px 0; }
+.m3h-body ul, .m3h-body ol { margin: 6px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.m3h-body b { font-weight: 600; }
+.m3h-body kbd { font: 600 12px/1 'Barlow', sans-serif; padding: 2px 6px; border-radius: 5px; background: var(--field); border: 1px solid var(--line); }
+.m3h-lede { font-size: 16.5px; }
+.m3h-note { color: var(--ink-2); font-size: 14.5px; }
+.m3h-warn { padding: 8px 12px; border-radius: 10px; background: rgba(255, 90, 110, .1); border-left: 3px solid var(--theirs); }
+.m3h-tip { color: var(--ink-2); font-size: 14px; }
+.m3h-gem { width: 2.1em; height: 2.1em; margin: -.55em -.35em; vertical-align: middle; }
+.m3h-table .m3h-gem { width: 2.6em; height: 2.6em; margin: -.7em -.45em; }
+.m3h-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0; }
+.m3h-row.tight { gap: 8px; }
+.m3h-then { font-size: 26px; color: var(--brass); }
+.m3h-callout { display: flex; flex-direction: column; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(74, 168, 255, .18), rgba(242, 207, 122, .2)); }
+.m3h-callout b { font: italic 700 22px/1.1 'Fraunces', serif; }
+.m3h-callout span { font-size: 13px; color: var(--ink-2); }
+.m3h-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 12px; background: var(--field); font-size: 14.5px; }
+.m3h-chip.mine { box-shadow: inset 3px 0 0 var(--mine); }
+.m3h-chip.theirs { box-shadow: inset 3px 0 0 var(--theirs); }
+
+/* the little boards */
+.m3h-mini { display: inline-flex; flex-direction: column; gap: 6px; margin: 0; }
+.m3h-grid {
+  position: relative; display: grid; gap: 3px; padding: 6px; border-radius: 12px; width: max-content;
+  background: linear-gradient(160deg, #1c2340, #0b0e1c); box-shadow: inset 0 0 0 2px #8a6a33, 0 6px 18px rgba(0, 0, 0, .25);
+}
+.m3h-cell { position: relative; width: 38px; height: 38px; border-radius: 8px; background: rgba(255, 255, 255, .05); }
+.m3h-cell:nth-child(odd) { background: rgba(255, 255, 255, .08); }
+.m3h-cell.lit { background: rgba(242, 207, 122, .32); box-shadow: inset 0 0 0 2px rgba(242, 207, 122, .8); }
+.m3h-cell img { position: absolute; left: -25%; top: -25%; width: 150%; height: 150%; pointer-events: none; }
+.m3h-swap { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); pointer-events: none; overflow: visible; }
+.m3h-swap line { stroke: #fff; stroke-width: 2.4; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px rgba(0, 0, 0, .9)); }
+.m3h-mini figcaption { font-size: 13px; color: var(--ink-2); max-width: 190px; }
+.m3h-specials { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.m3h-card { display: flex; align-items: center; gap: 14px; padding: 10px; border-radius: 14px; background: var(--field); }
+.m3h-card > div { display: flex; flex-direction: column; gap: 3px; }
+.m3h-card > .m3h-row { flex: none; flex-direction: row; flex-wrap: nowrap; margin: 0; }
+.m3h-card b { font: 600 18px/1.2 'Barlow Condensed', sans-serif; }
+.m3h-card span { font-size: 14.5px; line-height: 1.45; }
+.m3h-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14.5px; }
+.m3h-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.m3h-table td:first-child { white-space: nowrap; }
+.m3h-table.keys td:first-child { width: 90px; }
+.m3h-boosters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.m3h-booster { display: flex; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--field); }
+.m3h-booster .m3-bicon { width: 34px; height: 34px; font-size: 19px; border-radius: 10px; background: linear-gradient(160deg, var(--mine), var(--mine-2)); }
+.m3h-booster b { font: 600 17px/1.2 'Barlow Condensed', sans-serif; }
+.m3h-booster em { font-style: normal; font-size: 12.5px; color: var(--brass); }
+.m3h-booster p { font-size: 14px; line-height: 1.45; margin: 3px 0 0; }
+.m3h-tips li::marker { color: var(--brass); font-weight: 700; }
+.m3h-end { display: flex; justify-content: center; padding-top: 16px; }
+
+/* where the guide opens from */
+.m3-guide-btn { display: inline-flex; align-items: center; gap: 6px; }
+.m3-guide-btn .q { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--brass); color: #fff; font: 700 13px/1 'Barlow', sans-serif; }
+.m3-rules .m3-guide-btn { margin-top: 10px; }
+.sec-head .m3-guide-btn { margin-left: auto; align-self: center; }
+.m3-help-btn .q { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.7px solid currentColor; font: 700 14px/1 'Barlow', sans-serif; }
+
+@media (max-width: 620px) {
+  .m3h-wrap { padding: 0; }
+  .m3h { width: 100%; max-height: none; height: 100dvh; border-radius: 0; border: 0; }
+  .m3h-title { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 6px; }
+  .m3h-head h2 { font-size: 26px; }
+  .m3h-toc { padding: 2px 14px 8px; }
+  .m3h-body { padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px)); font-size: 15px; }
+  .m3h-body section { scroll-margin-top: 104px; }
+  .m3h-boosters { grid-template-columns: 1fr; }
+  .m3h-cell { width: 32px; height: 32px; }
+  .m3h-card { align-items: flex-start; flex-direction: column; }
+  .m3h-table td:first-child { white-space: normal; }
+}

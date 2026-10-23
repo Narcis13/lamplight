@@ -70,7 +70,8 @@ Switch the lobby's **Play** tab from Texas Hold'em to **Backgammon**.
 
 Switch the lobby's **Play** tab to **Gem Duel**. It follows the rules of Match Masters (researched, with
 sources, in [`docs/match-masters-research.md`](docs/match-masters-research.md)), with its own look, boosters
-and sounds, all drawn and synthesized in code.
+and sounds, all drawn and synthesized in code. New to it? **How to play** (on the Gem Duel side of the lobby, or the
+**?** in a duel's top bar) opens a beginner's guide to every rule, with pictures.
 
 - **One board, two players, turn by turn.** A 7x7 board of six kinds of gem. Classic is five rounds; in each
   round both players take one turn of two moves. Sprint is three rounds, Triples three rounds of three moves.
@@ -145,6 +146,7 @@ Ctrl-C cashes everyone out first; if it dies instead, the next start returns esc
 | `server/m3bot.js` | The gem duel bot: tries every swap, booster target and the hammer on a copy with its own refills |
 | `client/m3.jsx`, `client/m3.css` | The gem duel room: players, scores, booster meters, perks, banners, log and chat |
 | `client/m3board.js`, `client/m3sfx.js` | The gem board on canvas (gems, effects, particles, swipe and click input) and its synthesized sounds |
+| `client/m3help.jsx` | Gem Duel's how-to-play guide for beginners, opened from the lobby and the duel's top bar |
 | `docs/match-masters-research.md` | What Match Masters does, with sources, and which of it Gem Duel does |
 | `server/game.js` | The authoritative engine: `Game`, `Player`, `HandLog`, and the per-hand record |
 | `server/bots.js` | The bots' brains and the table's reads on every player |

@@ -196,6 +196,13 @@ function gemSprite(gem, s, px) {
   else { gemBody(g, gem, R); if (s === 'h' || s === 'v') arrows(g, gem, R, s); }
   return c;
 }
+/** A gem as an image URL, for pictures outside the board (the how-to-play guide). Look 0 is "yours", 1 "theirs". */
+const icons = new Map();
+export function gemImage(look, s = '', px = 72) {
+  const key = `${look}${s}${px}`;
+  if (!icons.has(key)) icons.set(key, gemSprite(GEMS[look], s, px).toDataURL());
+  return icons.get(key);
+}
 /** Soft round glows for light effects: one per gem, white ('w') and lamplight ('l'). */
 function glowSprite(col, core = 0.6) {
   const S = 64, c = canvas(S, S), g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);

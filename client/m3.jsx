@@ -12,6 +12,7 @@ import { M3, BOOSTERS, PERKS, W, rowOf, colOf, validMoves, groupsOf } from '../s
 import { hueOf } from './view.js';
 import { M3Board } from './m3board.js';
 import { M3Sfx } from './m3sfx.js';
+import { M3Manual } from './m3help.jsx';
 
 const usd = v => Fmt.usd(v);
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -316,7 +317,7 @@ function Confirm({ title, children, yes, no, onYes, onNo }) {
   );
 }
 
-function M3Top({ m3, app, shown, onLeave, sideOpen, onSide }) {
+function M3Top({ m3, app, shown, onLeave, sideOpen, onSide, onGuide }) {
   const s = shown, w = app.wallet, d = s && s.duel;
   const fmt = s ? `${M3.formats[s.format].label} · ${s.entry ? `${usd(s.entry)} entry` : 'free'}` : '';
   return (
@@ -339,6 +340,10 @@ function M3Top({ m3, app, shown, onLeave, sideOpen, onSide }) {
             {m3.chatUnread && <span className="dot" />}
           </button>
         )}
+        <button className="tool m3-help-btn" onClick={onGuide} aria-label="How to play">
+          <span className="q" aria-hidden="true">?</span>
+          <span className="lbl">How to play</span>
+        </button>
         <button className="tool" onClick={() => app.openSettings()}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h3M11 17h9" /><circle cx="15.5" cy="7" r="2.3" /><circle cx="8.5" cy="17" r="2.3" /></svg>
           <span className="lbl">Settings</span>
@@ -364,6 +369,7 @@ export function M3Room({ m3, app }) {
   const [confirm, setConfirm] = useState(null);
   const [sideOpen, setSideOpen] = useState(false);
   const [emoteOpen, setEmoteOpen] = useState(false);
+  const [guide, setGuide] = useState(false); // how to play, over the room (the game carries on underneath)
   const pumping = useRef(false), shownRef = useRef(m3.s);
   const me = m3.me, view = me ?? 0;
   const s = shown;
@@ -527,7 +533,7 @@ export function M3Room({ m3, app }) {
   useEffect(() => {
     const onKey = e => {
       if (e.key === 'Escape') { if (target) setTarget(null); else if (sideOpen) setSideOpen(false); else if (emoteOpen) setEmoteOpen(false); return; }
-      if (confirm || e.metaKey || e.ctrlKey || e.altKey || (e.target.matches && e.target.matches('input, textarea'))) return;
+      if (confirm || guide || e.metaKey || e.ctrlKey || e.altKey || (e.target.matches && e.target.matches('input, textarea'))) return;
       const k = e.key.toLowerCase();
       if (k === 'b') onBoost(); else if (k === 'h') onPerk('hammer'); else if (k === 's') onPerk('shuffle');
     };
@@ -548,7 +554,7 @@ export function M3Room({ m3, app }) {
   );
   return (
     <div className="m3-room">
-      <M3Top m3={m3} app={app} shown={s} onLeave={leave} sideOpen={sideOpen} onSide={() => setSideOpen(!sideOpen)} />
+      <M3Top m3={m3} app={app} shown={s} onLeave={leave} sideOpen={sideOpen} onSide={() => setSideOpen(!sideOpen)} onGuide={() => setGuide(true)} />
       <main className="m3-main">
         <section className={`m3-play${target ? ' aiming' : ''}`} aria-label="The duel">
           {s && <PlayerCard s={s} seatIdx={opp} me={me} view={view} refs={refs} bubble={bubbles[opp]} clockLeft={clockLeft} cls="m3-them" />}
@@ -579,6 +585,7 @@ export function M3Room({ m3, app }) {
           {s && s.seats[1 - me] ? s.seats[1 - me].name : 'Your opponent'} wins{s && s.entry ? ` and takes both entries (${usd(s.entry * 2)})` : ''}.
         </Confirm>
       )}
+      {guide && <M3Manual onClose={() => setGuide(false)} />}
     </div>
   );
 }
