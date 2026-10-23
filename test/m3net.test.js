@@ -1,6 +1,7 @@
 /* End-to-end gem duels: a real server, scripted players over WebSockets. */
 import { test, expect, beforeAll, afterAll } from 'bun:test';
 import { validMoves, canSwap, BOOSTERS, M3 } from '../shared/match3.js';
+import { M3Table } from '../server/m3table.js';
 
 const PORT = 4010 + Math.floor(Math.random() * 9);
 let proc;
@@ -222,6 +223,23 @@ test('a player who stops moving loses the turn to the clock, then the house play
   await until(() => dan.results.length >= 1, 60000);
   dan.ws.close();
 }, 90000);
+
+test('a finished match is settled before the next one can start, even if the table ticks meanwhile', () => {
+  const lobby = { changed() {}, pushWallet() {} };
+  const t = new M3Table(lobby, { id: 'x', name: 'Unit', format: 'sprint', entry: 0, speed: 'normal', bot: true });
+  t.seats[0] = { kind: 'human', name: 'Ivy', id: null, token: 'tok', wins: 0, booster: 'ember', paid: false, connected: true, away: false, timeouts: 0 };
+  t.newMatch();
+  const d = t.d;
+  while (!d.over) d.timeout(d.turn); // straight to the end, as if the last move were still animating
+  t.tick(); // the table's two-second tick must not open the next match before this one is settled
+  expect(t.settling).toBe(true);
+  expect(t.timer).toBe(null);
+  expect(t.d).toBe(d);
+  t.matchOver();
+  expect(t.result.scores).toEqual(d.scores);
+  expect(t.settling).toBe(false);
+  t.close();
+});
 
 test('a seat-holding bot steps aside for a person between matches; a third person only watches', async () => {
   const fay = player('Fay'), gus = player('Gus');

@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { PROFILES, STAKES, SNG, Fmt } from '../shared/engine.js';
 import { BG } from '../shared/backgammon.js';
+import { M3, BOOSTERS } from '../shared/match3.js';
 import { hueOf } from './view.js';
 import { Profile, Leaderboard } from './screens.jsx';
 
@@ -275,6 +276,68 @@ function CreateBoard({ onCreate, disabled, bankroll }) {
   );
 }
 
+/* ───────────── gem duel ───────────── */
+const entryLabel = v => (v ? usd(v) : 'Free');
+
+function DuelCard({ t, highlight, onSit, onWatch, bankroll }) {
+  const short = bankroll != null && bankroll < t.entry;
+  const f = M3.formats[t.format] || M3.formats.classic;
+  const against = t.withBot ? `vs ${BOT_LABEL[t.skill] || 'a bot'} until a person sits` : 'two people, no bots';
+  const status = t.playing ? `round ${t.round} of ${t.rounds}, ${t.scores[0]}-${t.scores[1]}` : '';
+  return (
+    <div className={`tcard m3card${highlight ? ' highlight' : ''}${t.playing ? ' live' : ''}`}>
+      <div>
+        <h4>{t.name} <span className={`stake-tag${t.entry ? ' gold' : ''}`}>{t.entry ? usd(t.entry) : 'Free'}</span></h4>
+        <div className="meta">
+          {t.playing && <span className="live-dot" aria-hidden="true" />}
+          {f.label}: {f.desc.toLowerCase()} · {t.entry ? `${usd(t.entry)} entry, winner takes ${usd(t.entry * 2)}` : 'no entry'} · {SPEED_LABEL[t.speed] || t.speed} · {against}{status ? ` · ${status}` : ''}
+        </div>
+      </div>
+      <div className="acts2">
+        <CopyLink id={t.id} />
+        <button className="btn small" onClick={onWatch}>Watch</button>
+        <button className="btn primary small" onClick={onSit} disabled={t.open <= 0 || short}
+          title={t.open <= 0 ? 'Both seats have people in them' : short ? `You need ${usd(t.entry)} to play here` : t.withBot ? 'The bot gives you its seat' : 'Take a seat'}>
+          {t.open <= 0 ? 'Full' : 'Play'}
+        </button>
+      </div>
+      <div className="seats">{t.seats.map((s, i) => <SeatPip key={i} s={s} />)}</div>
+    </div>
+  );
+}
+
+function CreateDuel({ onCreate, disabled, bankroll }) {
+  const [format, setFormat] = useState('classic');
+  const [name, setName] = useState('');
+  const [entry, setEntry] = useState(0);
+  const [bot, setBot] = useState(true);
+  const [skill, setSkill] = useState('regular');
+  const [speed, setSpeed] = useState('normal');
+  const short = bankroll != null && bankroll < entry;
+  return (
+    <form className="panel-card create" onSubmit={e => { e.preventDefault(); onCreate({ game: 'm3', format, name, entry, bot, skill, speed }); }}>
+      <h2>Open a duel</h2>
+      <Seg label="Format" value={format} onChange={setFormat} options={Object.entries(M3.formats).map(([k, f]) => [k, f.label])} />
+      <p className="form-note">{M3.formats[format].desc}. Make a match of four or more to keep your move. Highest score wins.</p>
+      <h3>Name</h3>
+      <div className="field"><input value={name} maxLength={24} placeholder="Gem night" onChange={e => setName(e.target.value)} aria-label="Duel name" /></div>
+      <h3>Entry</h3>
+      <Seg label="Entry" value={entry} onChange={setEntry} options={M3.entries.map(v => [v, entryLabel(v)])} />
+      <p className="form-note">{entry ? `Each player puts up ${usd(entry)} and the winner takes ${usd(entry * 2)}. A tie gives both back.` : 'Just for the glory: nothing changes hands.'}</p>
+      <h3>Opponent</h3>
+      <Seg label="Opponent" value={bot} onChange={setBot} options={[[true, 'Lamplight bot'], [false, 'A friend']]} />
+      {bot && <><h3>Bot</h3><Seg label="Bot skill" value={skill} onChange={setSkill} options={[['casual', 'Casual'], ['regular', 'Regular'], ['sharp', 'Sharp']]} /></>}
+      {!bot && <p className="form-note">Send your friend the duel's <b>Link</b>. They open it, pick a name and sit.</p>}
+      <h3>Clock</h3>
+      <Seg label="Speed" value={speed} onChange={setSpeed} options={[['relaxed', `Relaxed · ${M3.speeds.relaxed.clock}s`], ['normal', `Normal · ${M3.speeds.normal.clock}s`], ['turbo', `Turbo · ${M3.speeds.turbo.clock}s`]]} />
+      <div className="sheet-actions">
+        <button className="btn primary" disabled={disabled || short}>Open and sit{entry ? ` · ${usd(entry)}` : ''}</button>
+      </div>
+      {short && <p className="form-note neg">Your bankroll can't cover this.</p>}
+    </form>
+  );
+}
+
 function Tabs({ tab, onTab }) {
   const tabs = [['tables', 'Play'], ['leaderboard', 'Leaderboard'], ['profile', 'Profile']];
   return (
@@ -291,15 +354,18 @@ export function Lobby({ state, app }) {
   const watch = id => { commit(); app.join(id, false); };
   const host = location.port ? `${location.hostname}:${location.port}` : location.hostname;
   const bankroll = state.wallet ? state.wallet.bankroll : null;
-  const [game, setGameState] = useState(app.settings.lobbyGame === 'bg' ? 'bg' : 'poker');
+  const gameOf = t => (t.game === 'bg' || t.game === 'm3' ? t.game : 'poker');
+  const [game, setGameState] = useState(['bg', 'm3'].includes(app.settings.lobbyGame) ? app.settings.lobbyGame : 'poker');
   const setGame = g => { setGameState(g); app.settings.lobbyGame = g; app.save(); };
-  // a shared link to a backgammon board opens the backgammon side
+  // a shared link to a board opens that game's side
   const hl = state.highlight && state.tables.find(t => t.id === state.highlight);
-  useEffect(() => { if (hl) setGameState(hl.game === 'bg' ? 'bg' : 'poker'); }, [hl && hl.id]);
+  useEffect(() => { if (hl) setGameState(gameOf(hl)); }, [hl && hl.id]);
   const boards = state.tables.filter(t => t.game === 'bg');
   const bgOrder = t => (t.mode === 'money' ? 0 : 1) * 10000 + (t.mode === 'money' ? t.stake : t.entry) / 1000;
   boards.sort((a, b) => bgOrder(a) - bgOrder(b));
-  const poker = state.tables.filter(t => t.game !== 'bg');
+  const duels = state.tables.filter(t => t.game === 'm3');
+  duels.sort((a, b) => (b.withBot - a.withBot) || (a.entry - b.entry));
+  const poker = state.tables.filter(t => gameOf(t) === 'poker');
   const cash = poker.filter(t => t.mode !== 'sng');
   const order = Object.keys(STAKES);
   cash.sort((a, b) => order.indexOf(a.stakesKey) - order.indexOf(b.stakesKey));
@@ -326,12 +392,43 @@ export function Lobby({ state, app }) {
 
       {state.tab === 'tables' && (
         <div className="game-switch" role="tablist" aria-label="Game">
-          {[['poker', "Texas Hold'em", '♠'], ['bg', 'Backgammon', '⚀']].map(([k, l, icon]) => (
+          {[['poker', "Texas Hold'em", '♠', poker.length, 'table'], ['bg', 'Backgammon', '⚀', boards.length, 'board'], ['m3', 'Gem Duel', '◆', duels.length, 'duel']].map(([k, l, icon, n, unit]) => (
             <button key={k} role="tab" aria-selected={String(game === k)} onClick={() => setGame(k)}>
               <span className="gs-icon" aria-hidden="true">{icon}</span>{l}
-              <small>{k === 'poker' ? `${poker.length} ${poker.length === 1 ? 'table' : 'tables'}` : `${boards.length} ${boards.length === 1 ? 'board' : 'boards'}`}</small>
+              <small>{n} {n === 1 ? unit : `${unit}s`}</small>
             </button>
           ))}
+        </div>
+      )}
+
+      {state.tab === 'tables' && game === 'm3' && (
+        <div className="lobby-grid">
+          <div className="lobby-col">
+            <section className="panel-card" aria-labelledby="m3Title">
+              <div className="sec-head">
+                <h2 id="m3Title">Gem Duel</h2>
+                <span className="sec-sub">One board, two players, turn by turn. Match gems, build specials, charge your booster, outscore them</span>
+              </div>
+              <div className="tables">
+                {duels.length === 0 && <p className="empty-tables">No duels open. Open one on the right.</p>}
+                {duels.map(t => <DuelCard key={t.id} t={t} bankroll={bankroll} highlight={t.id === state.highlight} onSit={() => sit(t.id)} onWatch={() => watch(t.id)} />)}
+              </div>
+              <p className="hint">
+                Playing a friend? Open a duel with <b>A friend</b> as the opponent and send them its <b>Link</b>,
+                or have them open <code>{host}</code> and pick the duel here.
+              </p>
+            </section>
+            <section className="panel-card m3-rules" aria-labelledby="m3HowTitle">
+              <div className="sec-head"><h2 id="m3HowTitle">How it plays</h2></div>
+              <ul className="m3-how">
+                <li><b>Two moves a turn.</b> Swap two neighbours to line up three or more. A match of four or more gives the move back.</li>
+                <li><b>Specials.</b> Four in a line makes an arrow, an L or T a bomb, five in a line lightning. Swap two specials together for a combo.</li>
+                <li><b>Your colour charges your booster.</b> The blue gems are yours, the red ones theirs: take theirs to slow them down. Boosters and perks never cost a move.</li>
+                <li><b>Boosters:</b> {Object.values(BOOSTERS).map(b => b.name).join(', ')}. Pick yours before the match.</li>
+              </ul>
+            </section>
+          </div>
+          <CreateDuel bankroll={bankroll} disabled={!state.connected} onCreate={opts => { commit(); if (!name.trim()) { app.lobby.error = 'Pick a name first.'; app.renderLobby(); return; } app.createTable(opts); }} />
         </div>
       )}
 

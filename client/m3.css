@@ -1,0 +1,315 @@
+/* ════════════════════════════════════════════════════════════════════
+   LAMPLIGHT · gem duel room
+   The board draws itself (client/m3board.js); this is everything around
+   it. Your colour is always blue and theirs red, as on the board.
+   Wide screens: players and controls in a column left of the board, the
+   log on the right. Upright: players above and below the board. Phones:
+   the board edge to edge, everything else as glass.
+   ════════════════════════════════════════════════════════════════════ */
+.m3room {
+  position: fixed; inset: 0; z-index: 50; overflow-y: auto; overscroll-behavior: contain;
+  --mine: #4aa8ff; --mine-2: #1f5fd1; --theirs: #ff5a6e; --theirs-2: #c21f3c; --gold: #f2cf7a;
+  background:
+    radial-gradient(ellipse 60% 48% at 50% 42%, var(--lamp) 0%, transparent 72%),
+    radial-gradient(ellipse 40% 60% at 12% 90%, rgba(74, 168, 255, .07), transparent 70%),
+    radial-gradient(ellipse 40% 60% at 88% 10%, rgba(255, 90, 110, .06), transparent 70%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+  background-color: var(--bg-2);
+}
+.m3room[hidden] { display: none; }
+body.in-m3 .app { visibility: hidden; }
+.m3-room { min-height: 100%; display: flex; flex-direction: column; }
+.m3-topbar { position: sticky; top: 0; }
+.m3-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-2); font: 600 20px/1 'Barlow Condensed', sans-serif; }
+
+.m3-main {
+  width: 100%; max-width: 1500px; margin: 0 auto; padding: 14px 16px 22px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start;
+}
+.m3-play {
+  width: min(100%, 680px, calc(100dvh - 330px)); min-width: min(100%, 340px); margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.m3-stage { position: relative; width: 100%; aspect-ratio: 1; }
+.m3-board { position: absolute; inset: 0; }
+.m3-board canvas { touch-action: none; }
+
+/* ═════════════ players ═════════════ */
+.m3-player {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "av name score" "meter meter meter";
+  align-items: center; gap: 6px 10px; padding: 9px 12px 11px; border-radius: 16px;
+  background: var(--panel); border: 1px solid var(--line); box-shadow: 0 10px 30px -14px rgba(0, 0, 0, .45);
+  transition: border-color .25s, box-shadow .25s;
+}
+.m3-player.empty { grid-template-areas: "name"; grid-template-columns: 1fr; min-height: 58px; opacity: .8; }
+.m3-player.on.mine { border-color: var(--mine); box-shadow: 0 0 0 2px rgba(74, 168, 255, .28), 0 0 26px -4px rgba(74, 168, 255, .55); }
+.m3-player.on.theirs { border-color: var(--theirs); box-shadow: 0 0 0 2px rgba(255, 90, 110, .26), 0 0 26px -4px rgba(255, 90, 110, .5); }
+.m3-av {
+  grid-area: av; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 20px;
+  background: radial-gradient(circle at 35% 30%, hsl(var(--hue) 70% 72%), hsl(var(--hue) 55% 38%)); color: #fff;
+  box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 3.5px rgba(255, 255, 255, .14);
+}
+.m3-player.mine .m3-av { box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 4px var(--mine); }
+.m3-player.theirs .m3-av { box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 4px var(--theirs); }
+.m3-name { grid-area: name; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.m3-name b { font: 600 18px/1.1 'Barlow Condensed', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m3-name em { font: 600 11px/1 'Barlow', sans-serif; font-style: normal; margin-left: 6px; padding: 2px 5px; border-radius: 5px; vertical-align: 2px; background: var(--field); color: var(--ink-2); }
+.m3-name em.m3-me { background: rgba(74, 168, 255, .18); color: var(--mine); }
+.m3-name small { font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m3-player.on .m3-name small { color: var(--ink); font-weight: 600; }
+.m3-score { grid-area: score; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.m3-score b { font: 700 32px/0.9 'Barlow Condensed', sans-serif; letter-spacing: .01em; }
+.m3-player.mine .m3-score b { color: var(--mine); text-shadow: 0 0 18px rgba(74, 168, 255, .35); }
+.m3-player.theirs .m3-score b { color: var(--theirs); text-shadow: 0 0 18px rgba(255, 90, 110, .3); }
+.m3-moves { display: flex; gap: 4px; }
+.m3-moves i { width: 11px; height: 11px; border-radius: 3px; transform: rotate(45deg); background: var(--field); box-shadow: inset 0 0 0 1px var(--line); transition: background .25s, box-shadow .25s; }
+.m3-player.mine .m3-moves i.on { background: var(--mine); box-shadow: 0 0 8px var(--mine); }
+.m3-player.theirs .m3-moves i.on { background: var(--theirs); box-shadow: 0 0 8px var(--theirs); }
+.m3-charge { grid-area: meter; min-width: 0; }
+.m3-clock { position: absolute; left: 14px; right: 14px; bottom: 4px; height: 3px; border-radius: 2px; background: rgba(127, 127, 127, .18); overflow: hidden; }
+.m3-clock i { position: absolute; inset: 0; transform-origin: left; background: var(--gold); transition: transform .25s linear; }
+.m3-player.mine .m3-clock i { background: var(--mine); }
+.m3-player.theirs .m3-clock i { background: var(--theirs); }
+.m3-clock i.low { background: #ff7a45; animation: m3Low .5s ease-in-out infinite alternate; }
+@keyframes m3Low { to { opacity: .45; } }
+.m3-bubble {
+  position: absolute; z-index: 6; right: 12px; top: -14px; max-width: 70%; padding: 6px 11px; border-radius: 14px 14px 4px 14px;
+  background: var(--raised); color: var(--ink); box-shadow: var(--shadow); font: 600 15px/1.2 'Barlow', sans-serif; font-size: 15px;
+  overflow-wrap: anywhere; animation: m3Bubble 2.6s ease both; pointer-events: none;
+}
+.m3-bubble:not(:has(*)) { font-size: 15px; }
+@keyframes m3Bubble { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 8% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+
+/* booster meters */
+.m3-meter { display: flex; align-items: center; gap: 7px; min-width: 0; font: 600 13px/1 'Barlow Condensed', sans-serif; color: var(--ink-2); }
+.m3-bicon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; font-size: 14px; line-height: 1; color: #fff; background: linear-gradient(160deg, #7c6a9e, #3b3156); flex: none; }
+.m3-meter.mine .m3-bicon { background: linear-gradient(160deg, var(--mine), var(--mine-2)); }
+.m3-meter.theirs .m3-bicon { background: linear-gradient(160deg, var(--theirs), var(--theirs-2)); }
+.m3-bname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; letter-spacing: .02em; }
+.m3-pips { margin-left: auto; display: flex; gap: 3px; flex: none; }
+.m3-pips i { width: 12px; height: 7px; border-radius: 4px; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); transition: background .3s, box-shadow .3s; }
+.m3-meter.mine .m3-pips i.on { background: linear-gradient(180deg, #8fd0ff, var(--mine)); box-shadow: 0 0 6px rgba(74, 168, 255, .7); }
+.m3-meter.theirs .m3-pips i.on { background: linear-gradient(180deg, #ff9eaa, var(--theirs)); box-shadow: 0 0 6px rgba(255, 90, 110, .7); }
+.m3-meter.ready { color: var(--ink); }
+.m3-meter.ready .m3-bicon { animation: m3Ready 1.1s ease-in-out infinite; }
+@keyframes m3Ready { 50% { transform: scale(1.14) rotate(-6deg); box-shadow: 0 0 14px rgba(242, 207, 122, .9); } }
+
+/* ═════════════ your controls ═════════════ */
+.m3-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 16px;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.m3-controls.watching, .m3-controls.targeting { min-height: 62px; }
+.m3-hint { flex: 1 1 160px; font: 600 16px/1.25 'Barlow Condensed', sans-serif; color: var(--ink-2); }
+.m3-controls.targeting .m3-hint { color: var(--gold); }
+.m3-boost {
+  flex: 1 1 200px; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px; border-radius: 13px; text-align: left;
+  background: var(--field); border: 1px solid var(--line); color: var(--ink-2); transition: transform .15s, box-shadow .2s, filter .2s;
+}
+.m3-boost .m3-bicon { width: 34px; height: 34px; font-size: 19px; border-radius: 10px; background: linear-gradient(160deg, var(--mine), var(--mine-2)); }
+.m3-boost b { display: block; font: 600 17px/1.1 'Barlow Condensed', sans-serif; color: var(--ink); }
+.m3-boost small { font-size: 12.5px; }
+.m3-boost kbd { margin-left: auto; }
+.m3-boost.charged { background: linear-gradient(135deg, rgba(74, 168, 255, .3), rgba(242, 207, 122, .25)); border-color: var(--mine); color: var(--ink); }
+.m3-boost.charged:not(:disabled) { cursor: pointer; animation: m3Charged 1.6s ease-in-out infinite; }
+.m3-boost.charged:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.08); }
+@keyframes m3Charged { 50% { box-shadow: 0 0 0 3px rgba(74, 168, 255, .25), 0 0 26px rgba(74, 168, 255, .55); } }
+.m3-boost:disabled { opacity: .78; cursor: default; }
+.m3-perks { display: flex; gap: 6px; }
+.m3-perk {
+  width: 58px; height: 52px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: var(--field); border: 1px solid var(--line); color: var(--ink); font-size: 20px; line-height: 1; transition: transform .15s, background .15s;
+}
+.m3-perk small { font: 600 11px/1 'Barlow', sans-serif; color: var(--ink-2); }
+.m3-perk:not(:disabled):hover { transform: translateY(-1px); background: var(--raised); }
+.m3-perk:disabled { opacity: .45; }
+.m3-emote-wrap { position: relative; }
+.m3-emotes {
+  position: absolute; z-index: 8; right: 0; bottom: calc(100% + 8px); display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; padding: 6px;
+  border-radius: 14px; background: var(--raised); border: 1px solid var(--line); box-shadow: var(--shadow); animation: m3Pop .18s ease both;
+}
+.m3-emotes button { height: 44px; border-radius: 10px; font-size: 24px; }
+.m3-emotes button:hover { background: var(--field); }
+@keyframes m3Pop { from { opacity: 0; transform: translateY(6px) scale(.94); } }
+.m3-opts-row:empty { display: none; }
+.m3-opts { display: flex; gap: 6px; justify-content: flex-end; }
+.m3-side-opts .m3-opts { justify-content: flex-start; padding-top: 8px; }
+:root:not([data-compact]) .m3-side-opts { display: none; } /* beside the board they sit under your controls instead */
+
+/* ═════════════ over the board ═════════════ */
+.m3-banner {
+  position: absolute; left: 50%; top: 44%; z-index: 5; pointer-events: none; text-align: center; white-space: nowrap;
+  transform: translate(-50%, -50%); animation: m3Banner 1.25s cubic-bezier(.2, .9, .3, 1.2) both;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.m3-banner b {
+  font: italic 700 clamp(34px, 9cqw, 64px)/1 'Fraunces', serif; color: #fff; letter-spacing: .01em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .35), 0 0 28px rgba(242, 207, 122, .75), 0 0 2px #000;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, .25);
+}
+.m3-banner small { font: 700 15px/1 'Barlow Condensed', sans-serif; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
+.m3-banner.mine b { text-shadow: 0 2px 0 rgba(0, 0, 0, .35), 0 0 30px rgba(74, 168, 255, .95), 0 0 2px #000; }
+.m3-banner.theirs b { text-shadow: 0 2px 0 rgba(0, 0, 0, .35), 0 0 30px rgba(255, 90, 110, .9), 0 0 2px #000; }
+.m3-stage { container-type: inline-size; }
+@keyframes m3Banner {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  28% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(.96); }
+}
+.m3-curtain {
+  position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 4%; border-radius: 22px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(10, 12, 24, .55), rgba(6, 7, 14, .82)); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  animation: m3Fade .4s ease both; overflow-y: auto;
+}
+@keyframes m3Fade { from { opacity: 0; } }
+.m3-curtain-card { width: min(100%, 520px); display: flex; flex-direction: column; align-items: center; gap: 10px; color: #f1ead8; text-align: center; }
+.m3-curtain-card h3 { margin-top: 4px; font: 600 14px/1 'Barlow Condensed', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: rgba(241, 234, 216, .7); }
+.m3-result { display: flex; flex-direction: column; align-items: center; gap: 4px; animation: m3Pop .5s cubic-bezier(.2, .9, .3, 1.3) both; }
+.m3-result small { font: 600 13px/1 'Barlow Condensed', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+.m3-result b { font: italic 700 clamp(30px, 8cqw, 52px)/1.05 'Fraunces', serif; text-shadow: 0 0 26px rgba(242, 207, 122, .5); }
+.m3-result.won b { color: #ffe6a6; text-shadow: 0 0 30px rgba(242, 207, 122, .9); }
+.m3-result.lost b { color: #f3d5d9; }
+.m3-final { font: 700 30px/1 'Barlow Condensed', sans-serif; }
+.m3-final i { font-style: normal; }
+.m3-final i.mine { color: var(--mine); } .m3-final i.theirs { color: var(--theirs); }
+.m3-result .prize { font: 600 16px/1.2 'Barlow', sans-serif; color: var(--gold); }
+.m3-wait { font: 600 16px/1.3 'Barlow Condensed', sans-serif; color: rgba(241, 234, 216, .85); }
+.m3-wait:empty { display: none; }
+.m3-pick { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.m3-pick button {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; column-gap: 8px; align-items: center; text-align: left;
+  padding: 8px 9px; border-radius: 12px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); color: #f1ead8;
+  transition: background .15s, border-color .15s, transform .15s;
+}
+.m3-pick button .m3-bicon { grid-row: 1 / span 3; align-self: start; width: 28px; height: 28px; font-size: 16px; }
+.m3-pick button b { font: 600 15px/1.1 'Barlow Condensed', sans-serif; }
+.m3-pick button small { font-size: 11.5px; line-height: 1.25; color: rgba(241, 234, 216, .7); }
+.m3-pick button em { font: 600 11px/1.2 'Barlow', sans-serif; font-style: normal; color: var(--gold); }
+.m3-pick button:hover { background: rgba(255, 255, 255, .11); transform: translateY(-1px); }
+.m3-pick button.on { border-color: var(--mine); background: rgba(74, 168, 255, .2); box-shadow: 0 0 0 2px rgba(74, 168, 255, .3); }
+.m3-pick button.on .m3-bicon { background: linear-gradient(160deg, var(--mine), var(--mine-2)); }
+
+/* ═════════════ log & chat ═════════════ */
+.m3-side { position: sticky; top: 76px; height: min(560px, calc(100dvh - 100px)); display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.bg-feed .ln.s0::before, .bg-feed .ln.s1::before { content: ''; position: absolute; left: 1px; top: .45em; width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); }
+.bg-feed .ln.s0::before { background: #8a9bb8; }
+.bg-feed .ln.s1::before { background: #b88a93; }
+.bg-feed .ln.round { color: var(--gold); font-weight: 600; }
+.tool.m3-side-btn, .tool.m3-side-close { display: none; }
+.m3-side-btn { position: relative; }
+.m3-side-btn .dot { position: absolute; top: 6px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--brass); }
+
+/* ═════════════ lobby ═════════════ */
+.tcard.m3card { background: linear-gradient(135deg, rgba(74, 168, 255, .1), transparent 45%, rgba(255, 90, 110, .08)), var(--field); }
+.tcard.m3card .meta .live-dot { margin-right: 6px; }
+.m3-how { display: flex; flex-direction: column; gap: 8px; padding-left: 18px; font-size: 14.5px; line-height: 1.4; color: var(--ink-2); }
+.m3-how b { color: var(--ink); }
+/* three games side by side on a phone: icon over name, centred */
+@media (max-width: 560px) {
+  .game-switch { gap: 6px; }
+  .game-switch button { grid-template-columns: 1fr; grid-template-rows: auto auto auto; justify-items: center; text-align: center; row-gap: 3px; padding: 9px 4px; font-size: 16px; white-space: nowrap; }
+  .game-switch .gs-icon { grid-row: auto; font-size: 20px; }
+  .game-switch button small { grid-column: auto; font-size: 12px; }
+}
+
+/* ═════════════ middling screens ═════════════ */
+@media (max-width: 1080px) {
+  .m3-main { grid-template-columns: 1fr; }
+  .m3-side { position: static; height: 300px; width: 100%; max-width: 680px; margin: 0 auto; }
+}
+
+/* ═════════════ wide screens: the board at full height, players and controls in a column beside it ═════════════ */
+@media (min-aspect-ratio: 5/4) {
+  :root:not([data-compact]) .m3room { overflow: hidden; }
+  :root:not([data-compact]) .m3-room { height: 100%; min-height: 0; }
+  :root:not([data-compact]) .m3-main {
+    --pad: 14px; --hud-w: clamp(270px, 24vw, 340px); --side-w: clamp(240px, 20vw, 300px);
+    flex: 1 1 0; min-height: 0; max-width: none; padding: var(--pad); gap: 10px var(--pad); container-type: size;
+    grid-template-columns: var(--hud-w) auto var(--side-w); justify-content: center; align-items: stretch;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "them stage side" "you stage side" "ctl stage side" ". stage side" "opts stage side";
+  }
+  :root:not([data-compact]) .m3-play { display: contents; }
+  :root:not([data-compact]) .m3-them { grid-area: them; }
+  :root:not([data-compact]) .m3-you { grid-area: you; }
+  :root:not([data-compact]) .m3-controls { grid-area: ctl; }
+  :root:not([data-compact]) .m3-opts-row { grid-area: opts; }
+  :root:not([data-compact]) .m3-stage {
+    grid-area: stage; align-self: center;
+    width: min(100cqw - var(--hud-w) - var(--side-w) - 4 * var(--pad), 100cqh - 2 * var(--pad));
+  }
+  :root:not([data-compact]) .m3-side { grid-area: side; position: static; height: auto; width: auto; max-width: none; margin: 0; min-height: 0; }
+  :root:not([data-compact]) .m3-boost { flex-basis: 100%; }
+  :root:not([data-compact]) .m3-perks { flex: 1; }
+  :root:not([data-compact]) .m3-perk { flex: 1; }
+}
+@media (min-aspect-ratio: 5/4) and (max-width: 1080px) {
+  :root:not([data-compact]) .m3-main { grid-template-columns: var(--hud-w) auto; grid-template-areas: "them stage" "you stage" "ctl stage" "side stage" "opts stage"; }
+  :root:not([data-compact]) .m3-stage { width: min(100cqw - var(--hud-w) - 3 * var(--pad), 100cqh - 2 * var(--pad)); }
+}
+
+/* ═════════════ phones: the board edge to edge, everything else glass ═════════════ */
+:root[data-compact] .m3room { overflow: hidden; }
+:root[data-compact] .m3-room { position: relative; height: 100%; min-height: 0; }
+:root[data-compact] .m3-side-btn { display: inline-flex; }
+:root[data-compact] .m3-main { position: absolute; inset: 0; max-width: none; padding: 0; gap: 0; display: block; }
+:root[data-compact] .m3-player, :root[data-compact] .m3-controls {
+  background: var(--glass); border-color: var(--glass-line); box-shadow: none;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+:root[data-compact] .m3-opts-row { display: none; }
+:root[data-compact] .m3-side {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: min(340px, 88vw); height: auto; max-width: none; margin: 0;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-radius: 0; border-width: 0 0 0 1px; box-shadow: var(--shadow);
+  transform: translateX(105%); visibility: hidden; transition: transform .3s cubic-bezier(.3, .8, .3, 1), visibility 0s .3s;
+}
+:root[data-compact] .m3-side.open { transform: none; visibility: visible; transition: transform .3s cubic-bezier(.3, .8, .3, 1); }
+:root[data-compact] .m3-side-close { display: inline-flex; align-self: flex-end; margin: -4px -4px -6px 0; }
+
+/* upright: them, the board (full width), you, your controls */
+:root[data-compact="port"] .m3-main { top: 46px; }
+:root[data-compact="port"] .m3-play {
+  width: 100%; min-width: 0; height: 100%; margin: 0; gap: 6px; padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-columns: minmax(0, 1fr);
+}
+:root[data-compact="port"] .m3-stage { margin: 0 -8px; width: calc(100% + 16px); aspect-ratio: auto; min-height: 0; container-type: size; }
+:root[data-compact="port"] .m3-board { inset: 0; margin: auto; width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); }
+:root[data-compact="port"] .m3-curtain { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); inset: 0; margin: auto; border-radius: 0; }
+:root[data-compact="port"] .m3-banner b { font-size: clamp(30px, 10cqw, 52px); }
+:root[data-compact] .m3-player { padding: 6px 10px 9px; gap: 3px 8px; border-radius: 14px; }
+:root[data-compact] .m3-av { width: 32px; height: 32px; font-size: 16px; }
+:root[data-compact] .m3-name b { font-size: 16px; }
+:root[data-compact] .m3-name small { font-size: 12px; }
+:root[data-compact] .m3-score b { font-size: 26px; }
+:root[data-compact] .m3-controls { padding: 6px 8px; gap: 6px; flex-wrap: nowrap; }
+:root[data-compact] .m3-boost { flex: 1 1 auto; min-width: 0; min-height: 48px; padding: 5px 9px; gap: 8px; }
+:root[data-compact] .m3-boost .m3-bicon { width: 30px; height: 30px; font-size: 17px; }
+:root[data-compact] .m3-boost b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-compact] .m3-boost small { font-size: 11.5px; white-space: nowrap; }
+:root[data-compact] .m3-boost kbd, :root[data-compact] .m3-controls kbd { display: none; }
+:root[data-compact] .m3-perk { width: 48px; height: 48px; font-size: 18px; }
+:root[data-compact] .m3-pick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+:root[data-compact] .m3-pick button small { display: none; }
+:root[data-compact] .m3-curtain { padding: 10px; }
+
+/* sideways: the board at full height on the left, a glass column on the right */
+:root[data-compact="land"] .m3-play {
+  height: 100%; width: 100%; margin: 0; padding: 6px calc(6px + env(safe-area-inset-right, 0px)) 6px 0;
+  display: grid; gap: 6px; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "stage them" "stage you" "stage ." "stage ctl";
+}
+:root[data-compact="land"] .m3-stage { grid-area: stage; height: 100%; width: auto; aspect-ratio: 1; }
+:root[data-compact="land"] .m3-them { grid-area: them; }
+:root[data-compact="land"] .m3-you { grid-area: you; }
+:root[data-compact="land"] .m3-controls { grid-area: ctl; flex-wrap: wrap; }
+:root[data-compact="land"] .m3-main { top: 0; }
+:root[data-compact="land"] .m3-topbar { position: absolute; z-index: 3; top: 0; right: 0; left: auto; width: auto; background: transparent; border: 0; box-shadow: none; padding: 4px; }
+:root[data-compact="land"] .m3-topbar .brand, :root[data-compact="land"] .m3-topbar .table-info, :root[data-compact="land"] .m3-topbar .wallet-chip { display: none; }
+:root[data-compact="land"] .m3-them { margin-top: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .m3-banner, .m3-result, .m3-bubble, .m3-boost.charged:not(:disabled), .m3-meter.ready .m3-bicon { animation-duration: .01s; animation-iteration-count: 1; }
+}

@@ -67,6 +67,8 @@ export class M3Table {
 
   get fast() { return this.speed === 'test'; }
   get live() { return !!(this.d && !this.d.over); }
+  /** The last move is still playing out: the result isn't settled yet, so no new match can start. */
+  get settling() { return !!(this.d && this.d.over && !this.result); }
   /** Pauses between steps, scaled to the table speed. */
   T(k) {
     const base = { start: 900, intro: 2200, handoff: 1300, think: 750, next: 9000 }[k];
@@ -184,7 +186,7 @@ export class M3Table {
     const s = this.seats[i];
     if (!s || s.kind !== 'human') return;
     if (this.live) this.forfeit(i, why);
-    else if (this.d && this.d.over && !this.result) this.matchOver(); // the last move is still playing out: settle it first
+    else if (this.settling) this.matchOver(); // the last move is still playing out: settle it first
     if (s.paid && this.db && s.id) { this.db.cashOut(s.id, this.id, this.entry); this.lobby.pushWallet(s.id); } // only if no match took it
     this.seats[i] = null;
     this.update(null, { t: why === 'gone' ? `${s.name} lost the connection and gives up the seat` : `${s.name} gets up`, k: 'sys' });
@@ -219,7 +221,7 @@ export class M3Table {
     return false;
   }
   maybeStart(delay = 0) {
-    if (this.live || this.timer || this.closed) return;
+    if (this.live || this.settling || this.timer || this.closed) return;
     this.timer = setTimeout(() => {
       this.timer = null;
       if (this.live || this.closed) return;
@@ -357,6 +359,8 @@ export class M3Table {
       names: [A ? A.name : '', B ? B.name : ''], matchNo: this.matchNo, why,
     };
     this.record(kind);
+    const ms = this.T('next');
+    this.nextAt = Date.now() + ms; // before the update, so the result card can count down to the next match
     const head = w < 0
       ? `A draw, ${d.scores[0]}-${d.scores[1]}. Entries go back`
       : `${this.seats[w] ? this.seats[w].name : 'Their opponent'} wins ${d.scores[w]}-${d.scores[1 - w]}${kind === 'landslide' ? ', a landslide' : ''}${this.entry ? ` and ${Fmt.usd(pot)}` : ''}`;
@@ -364,8 +368,6 @@ export class M3Table {
     if (w >= 0) { this.say(w, LINES.win); this.say(1 - w, LINES.lose); }
     if (w >= 0 && this.seats[w] && this.seats[w].kind === 'human') this.toSeat(w, { e: 'm3Won', prize: this.entry ? pot : 0, landslide: d.landslide });
     this.lobby.changed();
-    const ms = this.T('next');
-    this.nextAt = Date.now() + ms;
     clearTimeout(this.timer); this.timer = null;
     this.maybeStart(ms);
   }

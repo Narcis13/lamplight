@@ -6,6 +6,7 @@
    ════════════════════════════════════════════════════════════════════ */
 import { Fmt, HandEval, Strength, Equity, PROFILES, SPEEDS, Cards, fillMoney, cleanName } from '../shared/engine.js';
 import { ACH } from '../shared/achievements.js';
+import { animMs } from '../shared/match3.js';
 import { $, $$, esc, pct, TableView, SFX, Modal, Drawer } from './view.js';
 import { ActionPanel } from './panel.js';
 import { Net } from './net.js';
@@ -59,11 +60,13 @@ const Store = {
 };
 
 export class App {
-  constructor({ renderLobby, renderOverlay, renderBg }) {
+  constructor({ renderLobby, renderOverlay, renderBg, renderM3 }) {
     this.renderLobbyUI = renderLobby;
     this.renderOverlayUI = renderOverlay;
     this.renderBgUI = renderBg;
+    this.renderM3UI = renderM3;
     this.bg = null; // the backgammon board we're at, if any (poker tables use G and tableId)
+    this.m3 = null; // the gem duel we're at, if any
     this.settings = Store.load();
     Fmt.units = this.settings.units; Fmt.bb = 2;
     this.sfx = new SFX(this.settings);
@@ -106,7 +109,8 @@ export class App {
   save() { Store.save(this.settings); }
   baseTitle() {
     if (this.bg && this.bg.s) return `${this.bg.s.name} · Lamplight`;
-    return this.G ? `${this.G.name} · Lamplight` : "Lamplight: Hold'em & Backgammon";
+    if (this.m3 && this.m3.s) return `${this.m3.s.name} · Lamplight`;
+    return this.G ? `${this.G.name} · Lamplight` : "Lamplight: Hold'em, Backgammon & Gem Duel";
   }
   get myId() { return this.wallet ? this.wallet.id : null; }
 
@@ -137,8 +141,91 @@ export class App {
     if (!this.settings.name) { this.lobby.error = 'Pick a name first, so the table knows what to call you.'; this.lobby.tab = 'tables'; this.renderLobby(); return; }
     this.lobby.error = '';
     const t = this.lobby.tables.find(x => x.id === id);
-    if (game === 'bg' || (!game && t && t.game === 'bg')) this.enterBg(id, sit); else this.enterTable(id, sit);
-    this.net.send({ t: 'join', id, sit, name: this.net.name });
+    const kind = game || (t && t.game);
+    if (kind === 'bg') this.enterBg(id, sit); else if (kind === 'm3') this.enterM3(id, sit); else this.enterTable(id, sit);
+    this.net.send({ t: 'join', id, sit, name: this.net.name, booster: this.settings.m3Booster });
+  }
+
+  /* ───────────── gem duel ─────────────
+     Every state and event from the board goes into `feed`; the room plays
+     them back one at a time on its canvas, so nothing is skipped.        */
+  enterM3(id, sit) {
+    this.tableId = null; this.G = null; this.queue = []; this.wantSeat = false;
+    this.panel.reset(); this.view.clearCards?.(); this.view.hideMsg();
+    this.m3 = { id, s: null, me: null, pending: null, wantSeat: sit, log: [], chat: [], chatUnread: false, stateAt: 0, feed: [], snapNo: 0, onFeed: null };
+    const u = new URL(location.href); u.searchParams.set('t', id); history.replaceState(null, '', u);
+    document.body.classList.add('in-m3');
+    this.showLobby(false);
+    this.renderM3();
+  }
+  m3Leave() {
+    this.net.send({ t: 'leave' });
+    this.m3 = null;
+    document.body.classList.remove('in-m3');
+    const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null, '', u);
+    document.title = this.baseTitle();
+    this.renderM3();
+    this.showLobby(true);
+  }
+  m3Sit(seat) {
+    if (!this.settings.name) { this.view.toast('Pick a name in the lobby first'); return; }
+    this.net.send({ t: 'sit', seat, booster: this.settings.m3Booster });
+  }
+  m3Booster(key) { this.settings.m3Booster = key; this.save(); this.net.send({ t: 'booster', key }); }
+  renderM3() { this.renderM3UI(this.m3, this); }
+  /** Messages for the duel we're at. Returns false for the ones the rest of the app handles (wallet, profile…). */
+  onM3(m) {
+    const b = this.m3;
+    const push = item => { b.feed.push(item); if (b.onFeed) b.onFeed(); };
+    switch (m.e) {
+      case 'm3Snap':
+        b.s = m.s; b.me = m.me; b.pending = m.me != null ? null : m.pending; b.log = m.log || []; b.stateAt = Date.now();
+        b.feed = []; b.snapNo++;
+        document.title = this.baseTitle();
+        this.renderM3();
+        return true;
+      case 'm3': {
+        b.s = m.s; b.stateAt = Date.now(); b.lastAnim = animMs(m.ev); // the turn clock stands still while that plays
+        const mine = m.s.seats.findIndex(x => x && x.kind === 'human' && this.myId && x.id === this.myId);
+        if (b.me != null && mine < 0) b.me = null;
+        if (b.pending != null && mine >= 0) { b.me = mine; b.pending = null; }
+        if (m.line) { b.log.push(m.line); if (b.log.length > 120) b.log.shift(); }
+        if (m.ev && m.ev.type === 'turn' && m.ev.seat === b.me && document.hidden) document.title = '● Your turn · Lamplight';
+        push({ s: m.s, ev: m.ev });
+        this.renderM3();
+        return true;
+      }
+      case 'm3Emote': push({ emote: m }); return true;
+      case 'pending':
+        b.pending = m.seat;
+        this.view.toast("Seat saved. You're in when this match ends");
+        this.renderM3();
+        return true;
+      case 'm3Won': this.celebrate(m.landslide ? 'Landslide!' : 'You win!', m.prize ? `${Fmt.usd(m.prize)} to your bankroll` : 'Well played', m.landslide ? 'big' : 'med'); return true;
+      case 'chat':
+        b.chat.push({ name: m.name, text: m.text, bot: !!m.bot, seat: m.seat });
+        if (b.chat.length > 80) b.chat.shift();
+        b.chatUnread = true;
+        if (m.bot) this.sfx.blip();
+        push({ chat: m });
+        this.renderM3();
+        return true;
+      case 'toast': this.view.toast(fillMoney(m.msg)); return true;
+      case 'error':
+        if (m.gone) { this.m3Leave(); this.lobby.error = m.msg; this.renderLobby(); return true; }
+        if (b.pending != null && b.me == null) b.pending = null;
+        this.view.toast(m.msg);
+        this.renderM3();
+        return true;
+      case 'replaced':
+        this.m3 = null; document.body.classList.remove('in-m3'); this.renderM3();
+        this.lobby.replaced = true;
+        this.lobby.error = 'This seat was opened in another tab. Close this one, or reload it to play here instead.';
+        this.showLobby(true);
+        return true;
+      case 'achievement': this.showAchievement(m); return true;
+    }
+    return false;
   }
 
   /* ───────────── backgammon ───────────── */
@@ -161,7 +248,10 @@ export class App {
     this.showLobby(true);
   }
   bgSend(t, extra = {}) { this.net.send({ t, ...extra }); }
-  clearChatUnread() { if (this.bg) { this.bg.chatUnread = false; this.renderBg(); } }
+  clearChatUnread() {
+    if (this.bg) { this.bg.chatUnread = false; this.renderBg(); }
+    if (this.m3) { this.m3.chatUnread = false; this.renderM3(); }
+  }
   bgSit(seat) {
     if (!this.settings.name) { this.view.toast('Pick a name in the lobby first'); return; }
     this.net.send({ t: 'sit', seat });
@@ -295,12 +385,16 @@ export class App {
     c.textContent = up ? 'Online' : 'Reconnecting';
     this.renderLobby();
     if (this.bg) this.renderBg();
+    if (this.m3) this.renderM3();
   }
   onOpen() {
     this.net.send({ t: 'hello', name: this.net.name });
     if (this.bg) {
       const b = this.bg;
       this.net.send({ t: 'join', id: b.id, sit: b.me != null || b.pending != null || b.wantSeat, name: this.net.name });
+    } else if (this.m3) {
+      const b = this.m3;
+      this.net.send({ t: 'join', id: b.id, sit: b.me != null || b.pending != null || b.wantSeat, name: this.net.name, booster: this.settings.m3Booster });
     } else if (this.tableId) {
       const seated = this.G && (this.G.me != null || this.G.pendingSeat != null);
       this.syncing = true; this.queue = [];
@@ -315,7 +409,9 @@ export class App {
   onMessage(m) {
     // joined from a link before the lobby said what kind of table it was: it's a backgammon board
     if (m.e === 'bgSnap' && !this.bg && this.tableId && m.s && m.s.id === this.tableId) this.enterBg(m.s.id, this.wantSeat);
+    if (m.e === 'm3Snap' && !this.m3 && this.tableId && m.s && m.s.id === this.tableId) this.enterM3(m.s.id, this.wantSeat);
     if (this.bg && this.onBg(m)) return;
+    if (this.m3 && this.onM3(m)) return;
     switch (m.e) {
       case 'lobby': this.lobby.tables = m.tables; this.renderLobby(); return;
       case 'created':
@@ -329,7 +425,7 @@ export class App {
         this.lobby.error = 'This seat was opened in another tab. Close this one, or reload it to play here instead.';
         this.showLobby(true); return;
       case 'wallet':
-        this.wallet = m.wallet; this.renderLobby(); this.updateTopbar(); if (this.bg) this.renderBg(); return;
+        this.wallet = m.wallet; this.renderLobby(); this.updateTopbar(); if (this.bg) this.renderBg(); if (this.m3) this.renderM3(); return;
       case 'bonus':
         this.view.toast(m.refill ? `Topped up with ${Fmt.usd(m.amount)} to get you back in the game` : `Daily bonus: ${Fmt.usd(m.amount)}${m.streak > 1 ? `, day ${m.streak} of your streak` : ''}`);
         this.sfx.win();
