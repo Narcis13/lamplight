@@ -292,10 +292,13 @@ const SNG = {
 const cleanName = (s, max = 16, fallback = 'Player') =>
   String(s ?? '').replace(/[<>&"'`{}\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, max) || fallback;
 
+/** Is `k` one of the table's own keys (not 'constructor', '__proto__'...)? Names from browsers go through this. */
+const own = (table, k) => typeof k === 'string' && Object.hasOwn(table, k);
+
 /** Server messages carry amounts as `{$123}` so each client formats them in its own units. */
 const fillMoney = s => String(s ?? '').replace(/\{\$(\d+)\}/g, (_, n) => Fmt.money(+n));
 
 export {
   clamp, sleep, secureInt, shuffleArr, RANK_CH, RANK_ONE, RANK_MANY, Fmt, Cards, Deck, HandEval, Strength, Equity,
-  PotManager, PROFILES, STREETS, SPEEDS, STAKES, SNG, cleanName, fillMoney,
+  PotManager, PROFILES, STREETS, SPEEDS, STAKES, SNG, cleanName, own, fillMoney,
 };

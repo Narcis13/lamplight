@@ -13,7 +13,7 @@
    Seat changes (someone sits, leaves, a bot makes room, a rebuy) are
    queued and applied only between hands, in beforeHand().
    ════════════════════════════════════════════════════════════════════ */
-import { sleep, secureInt, shuffleArr, PROFILES, SPEEDS, STAKES, SNG, Fmt } from '../shared/engine.js';
+import { sleep, secureInt, shuffleArr, own, PROFILES, SPEEDS, STAKES, SNG, Fmt } from '../shared/engine.js';
 import { Game, Player, HandLog } from './game.js';
 
 const DISCONNECT_GRACE = 90_000; // a dropped player keeps the seat this long
@@ -30,8 +30,8 @@ export class Table {
     this.lobby = lobby; this.db = db;
     this.id = id; this.name = name; this.permanent = permanent; this.auto = auto;
     this.mode = mode === 'sng' ? 'sng' : 'cash';
-    this.speed = SPEEDS[speed] ? speed : 'normal';
-    this.skillKey = SKILL[skill] != null ? skill : 'regular';
+    this.speed = own(SPEEDS, speed) ? speed : 'normal';
+    this.skillKey = own(SKILL, skill) ? skill : 'regular';
     this.fillBots = this.mode === 'cash' && fillBots;
     this.clients = new Set();
     this.reservations = []; // [{ token, pid, name, seat }]
@@ -49,8 +49,8 @@ export class Table {
     this.log.onStart = no => this.emit({ e: 'logStart', no });
     this.log.onLine = (no, l) => this.emit({ e: 'log', no, ...l });
 
-    const st = this.mode === 'sng' ? { sb: SNG.levels[0][0], bb: SNG.levels[0][1] } : (STAKES[stakes] || STAKES.micro);
-    this.stakesKey = STAKES[stakes] ? stakes : 'micro';
+    this.stakesKey = own(STAKES, stakes) ? stakes : 'micro';
+    const st = this.mode === 'sng' ? { sb: SNG.levels[0][0], bb: SNG.levels[0][1] } : STAKES[this.stakesKey];
     this.game = new Game({ view: this.view(), panel: this, log: this.log, settings: { speed: this.speed, tournament: this.mode === 'sng', runTwice: this.mode === 'cash' }, stakes: st });
     const g = this.game;
     g.buyIn = this.mode === 'sng' ? SNG.chips : buyInBB * g.bb;

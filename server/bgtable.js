@@ -19,7 +19,7 @@
    A bot can hold the second seat. It steps aside for a person between
    games (money) or between matches (match).
    ════════════════════════════════════════════════════════════════════ */
-import { secureInt, PROFILES, Fmt } from '../shared/engine.js';
+import { secureInt, own, PROFILES, Fmt } from '../shared/engine.js';
 import {
   BG, WHITE, BLACK, initialPosition, Turn, winnerOf, winKind, KIND_NAME, pipCount, notation,
 } from '../shared/backgammon.js';
@@ -50,7 +50,7 @@ export class BgTable {
     this.stake = BG.stakes.includes(Number(stake)) ? Number(stake) : BG.stakes[0];
     this.entry = BG.entries.includes(Number(entry)) ? Number(entry) : 500;
     this.matchTo = this.mode === 'match' ? (BG.lengths.includes(Number(matchTo)) ? Number(matchTo) : 5) : 0;
-    this.speed = BG.speeds[speed] ? speed : 'normal';
+    this.speed = own(BG.speeds, speed) ? speed : 'normal';
     this.withBot = !!bot;
     this.skill = SKILLS.includes(skill) ? skill : 'regular';
     this.clients = new Set();
