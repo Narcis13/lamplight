@@ -11,7 +11,7 @@
    ════════════════════════════════════════════════════════════════════ */
 import { cleanName, own, SPEEDS, STAKES, SNG } from '../shared/engine.js';
 import { BG } from '../shared/backgammon.js';
-import { M3, own } from '../shared/match3.js';
+import { M3 } from '../shared/match3.js';
 import { Table } from './table.js';
 import { BgTable } from './bgtable.js';
 import { M3Table } from './m3table.js';
