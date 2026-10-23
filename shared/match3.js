@@ -212,9 +212,14 @@ export function reshuffle(b, rng) {
     order.forEach((p, i) => { b.cells[i] = p; });
     if (!runsOf(b.cells).length && hasMove(b.cells)) return { moves: order.map((p, i) => [p.id, i]), recolor: [] };
   }
-  const fresh = newBoard(rng), recolor = [];
-  b.cells.forEach((p, i) => { if (!p.s && p.c !== fresh.cells[i].c) { p.c = fresh.cells[i].c; recolor.push([p.id, p.c]); } });
-  return { moves: b.cells.map((p, i) => [p.id, i]), recolor };
+  // nothing worked with these colours: repaint the plain pieces until the board is settled and playable
+  const was = new Map(b.cells.map(p => [p.id, p.c]));
+  for (let t = 0; t < 300; t++) {
+    const fresh = newBoard(rng);
+    b.cells.forEach((p, i) => { if (!p.s) p.c = fresh.cells[i].c; });
+    if (!runsOf(b.cells).length && hasMove(b.cells)) break;
+  }
+  return { moves: b.cells.map((p, i) => [p.id, i]), recolor: b.cells.filter(p => p.c !== was.get(p.id)).map(p => [p.id, p.c]) };
 }
 
 /* ───────────── clearing, specials, gravity, cascades ───────────── */
@@ -503,7 +508,7 @@ export class Duel {
     const d = new Duel({ format: s.format, first: s.first, boosters: s.boosters, rng, board: { cells: s.board.map(p => p && { ...p }), seq: s.seq } });
     Object.assign(d, {
       turn: s.turn, round: s.round, half: s.half, moves: s.moves, scores: s.scores.slice(), charge: s.charge.slice(),
-      perks: s.perks.map(p => ({ ...p })), over: s.over, winner: s.winner, landslide: s.landslide,
+      perks: s.perks.map(p => ({ ...p })), over: s.over, winner: s.winner, landslide: s.landslide, turnPts: s.turnPts || 0,
     });
     return d;
   }
