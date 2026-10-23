@@ -248,3 +248,26 @@ test('run it twice over the network, and the time bank before a timeout', async 
   expect(me.timeBank).toBe(0);
   c.ws.close(); d.ws.close();
 }, 90000);
+
+test("speeds and stakes named after JavaScript's own keys fall back to the defaults", async () => {
+  const kit = player('Kit', { silent: true });
+  await kit.ready;
+  const ids = [];
+  for (const k of ['constructor', '__proto__', 'toString']) {
+    let id = null;
+    const onCreated = ev => { const m = JSON.parse(ev.data); if (m.e === 'created') id = m.id; };
+    kit.ws.addEventListener('message', onCreated);
+    kit.send({ t: 'create', opts: { name: `Odd ${k}`, speed: k, stakes: k, fillBots: false } });
+    await until(() => id);
+    kit.ws.removeEventListener('message', onCreated);
+    ids.push(id);
+  }
+  const list = await (await fetch(`http://localhost:${PORT}/api/tables`)).json();
+  for (const id of ids) {
+    const t = list.find(x => x.id === id);
+    expect(t.speed).toBe('normal');
+    expect(t.stakesKey).toBe('micro');
+    expect(t.bb).toBe(2);
+  }
+  kit.ws.close();
+});

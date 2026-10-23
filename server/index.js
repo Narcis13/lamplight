@@ -9,7 +9,7 @@
    ids can be shown to others without letting anyone sign in as you.
    Seats are held by a per-tab token, as before.
    ════════════════════════════════════════════════════════════════════ */
-import { cleanName, SPEEDS, STAKES, SNG } from '../shared/engine.js';
+import { cleanName, own, SPEEDS, STAKES, SNG } from '../shared/engine.js';
 import { BG } from '../shared/backgammon.js';
 import { M3, own } from '../shared/match3.js';
 import { Table } from './table.js';
@@ -51,8 +51,8 @@ class Lobby {
       // built-in names are ours and may use '&'; anything a player typed is cleaned
       name: opts.builtIn ? String(opts.name) : cleanName(opts.name, 24, mode === 'sng' ? `Sit & Go ${this.seq + 1}` : `Table ${this.seq + 1}`),
       mode,
-      stakes: STAKES[opts.stakes] ? opts.stakes : 'micro',
-      speed: SPEEDS[speed] ? speed : 'normal',
+      stakes: own(STAKES, opts.stakes) ? opts.stakes : 'micro',
+      speed: own(SPEEDS, speed) ? speed : 'normal',
       buyInBB: [50, 100, 200].includes(Number(opts.buyInBB)) ? Number(opts.buyInBB) : 100,
       fillBots: opts.fillBots !== false,
       bots: Math.max(0, Math.min(5, Number(opts.bots) || 0)),
@@ -73,7 +73,7 @@ class Lobby {
       id: this.newId(),
       name: opts.builtIn ? String(opts.name) : cleanName(opts.name, 24, mode === 'match' ? `Match ${this.seq + 1}` : `Board ${this.seq + 1}`),
       mode, stake: Number(opts.stake), entry: Number(opts.entry), matchTo: Number(opts.matchTo),
-      speed: BG.speeds[speed] ? speed : 'normal', bot: opts.bot !== false,
+      speed: own(BG.speeds, speed) ? speed : 'normal', bot: opts.bot !== false,
       skill: ['casual', 'regular', 'sharp'].includes(opts.skill) ? opts.skill : 'regular',
       permanent: !!opts.permanent, db,
     });
