@@ -22,7 +22,7 @@ export const M3 = {
     sprint: { rounds: 3, moves: 2, label: 'Sprint', desc: 'Three rounds, two moves a turn' },
     triples: { rounds: 3, moves: 3, label: 'Triples', desc: 'Three rounds, three moves a turn' },
   },
-  speeds: { relaxed: { clock: 45 }, normal: { clock: 30 }, turbo: { clock: 20 }, test: { clock: 30 } },
+  speeds: { relaxed: { clock: 45 }, normal: { clock: 30 }, turbo: { clock: 20 }, test: { clock: 3 } },
   entries: [0, 100, 500, 2500],
   bolt: 12, // pieces a lightning bolt zaps
   landslide: 0.3, // win by more than this share of the loser's score

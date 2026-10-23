@@ -29,5 +29,9 @@ export const ACHIEVEMENTS = [
   { key: 'bg_cube', icon: '🧊', title: 'Cube action', desc: 'Win a backgammon game with the cube on 4 or higher.', tier: 2 },
   { key: 'bg_match', icon: '🏅', title: 'Match point', desc: 'Win a backgammon match.', tier: 2 },
   { key: 'bg_backgammon', icon: '⚡', title: 'Backgammon!', desc: 'Win with a checker of theirs still on the bar or in your home board.', tier: 3 },
+  { key: 'm3_first', icon: '💎', title: 'Gem duelist', desc: 'Win a gem duel.', tier: 1 },
+  { key: 'm3_combo', icon: '💥', title: 'Combo', desc: 'Swap two special pieces together in a gem duel.', tier: 1 },
+  { key: 'm3_landslide', icon: '🌋', title: 'Landslide', desc: 'Win a gem duel by more than 30% of your opponent\'s score.', tier: 2 },
+  { key: 'm3_score', icon: '🌟', title: 'Gem hoarder', desc: 'Score 200 points in a single gem duel.', tier: 3 },
 ];
 export const ACH = Object.fromEntries(ACHIEVEMENTS.map(a => [a.key, a]));
