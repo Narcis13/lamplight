@@ -212,3 +212,18 @@ test('a seat-holding bot steps aside for a person between games', async () => {
   expect(hal.errors[0]).toMatch(/Both seats are taken/);
   for (const p of [fay, gus, hal]) p.ws.close();
 }, 90000);
+
+test("a speed named after one of JavaScript's own keys falls back to normal", async () => {
+  const ivy = player('Ivy', { play: false });
+  await ivy.ready;
+  const ids = [];
+  for (const speed of ['constructor', '__proto__', 'toString']) ids.push(await create(ivy, { speed, bot: false }));
+  const list = await (await fetch(`http://localhost:${PORT}/api/tables`)).json();
+  for (const id of ids) expect(list.find(t => t.id === id).speed).toBe('normal');
+  // and the board runs on the normal clock, not a NaN one
+  const id = await create(ivy, { speed: 'constructor', bot: true });
+  ivy.send({ t: 'join', id, sit: true });
+  await until(() => ivy.s && ivy.s.clock, 15000);
+  expect([BG.speeds.normal.clock, Math.round(BG.speeds.normal.clock * 0.6)]).toContain(ivy.s.clock.total);
+  ivy.ws.close();
+}, 30000);
