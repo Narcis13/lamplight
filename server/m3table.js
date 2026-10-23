@@ -16,7 +16,7 @@
    A bot can hold a seat. It steps aside for a person between matches.
    ════════════════════════════════════════════════════════════════════ */
 import { secureInt, PROFILES, Fmt } from '../shared/engine.js';
-import { Duel, M3, BOOSTERS, PERKS, animMs } from '../shared/match3.js';
+import { Duel, M3, BOOSTERS, PERKS, animMs, own } from '../shared/match3.js';
 import { M3Bot } from './m3bot.js';
 
 const DISCONNECT_GRACE = 60_000; // a dropped player keeps the seat this long, then forfeits the match
@@ -40,9 +40,9 @@ export class M3Table {
     this.lobby = lobby; this.db = db;
     this.id = id; this.name = name; this.permanent = permanent;
     this.game = 'm3';
-    this.format = M3.formats[format] ? format : 'classic';
+    this.format = own(M3.formats, format) ? format : 'classic';
     this.entry = M3.entries.includes(Number(entry)) ? Number(entry) : 100;
-    this.speed = M3.speeds[speed] ? speed : 'normal';
+    this.speed = own(M3.speeds, speed) ? speed : 'normal';
     this.withBot = !!bot;
     this.skill = SKILLS.includes(skill) ? skill : 'regular';
     this.clients = new Set();
@@ -57,6 +57,7 @@ export class M3Table {
     this.timer = null; // the table's own next step
     this.nextAt = 0;
     this.flow = 0; // bumped whenever a match ends: stale steps check it and stop
+    this.stepNo = 0; // the bot's (or the house's) latest scheduled step
     this.waiting = '';
     this.helper = new M3Bot('regular'); // plays for people who are sitting out
     if (this.withBot) this.placeBot(1);
@@ -153,9 +154,9 @@ export class M3Table {
     }
     const seat = this.freeSeat(Number.isInteger(prefer) ? prefer : -1);
     if (seat < 0) return 'Both seats are taken. Watch, or open a board of your own.';
-    const r = { token: ws.data.token, pid, name: ws.data.name, seat, booster: BOOSTERS[booster] ? booster : 'ember' };
-    // a bot in the middle of a match finishes it first
-    if (this.seats[seat] && this.live) {
+    const r = { token: ws.data.token, pid, name: ws.data.name, seat, booster: own(BOOSTERS, booster) ? booster : 'ember' };
+    // a bot in the middle of a match (or whose last move is still playing out) finishes it first
+    if (this.seats[seat] && (this.live || this.settling)) {
       this.reservations.push(r);
       this.send(ws, { e: 'pending', seat, now: false, match: true });
       this.update();
@@ -277,9 +278,9 @@ export class M3Table {
   }
   /** The bot (or the house, for someone sitting out) takes its next action after `delay`. */
   botStep(seat, delay) {
-    const flow = this.flow, d = this.d, round = d.round, half = d.half;
+    const flow = this.flow, d = this.d, round = d.round, half = d.half, step = ++this.stepNo; // only the latest scheduled step acts
     setTimeout(() => {
-      if (flow !== this.flow || !this.live || d.turn !== seat || d.round !== round || d.half !== half) return;
+      if (step !== this.stepNo || flow !== this.flow || !this.live || this.between || d.turn !== seat || d.round !== round || d.half !== half) return;
       const s = this.seats[seat];
       if (!s || (s.kind === 'human' && !s.away)) return;
       const brain = s.kind === 'bot' ? s.brain : this.helper;
@@ -356,7 +357,7 @@ export class M3Table {
     if (w >= 0 && this.seats[w]) this.seats[w].wins++;
     this.result = {
       winner: w, loser: w >= 0 ? 1 - w : null, kind, scores: d.scores.slice(), landslide: d.landslide, prize: w >= 0 ? pot : this.entry,
-      names: [A ? A.name : '', B ? B.name : ''], matchNo: this.matchNo, why,
+      names: [A ? A.name : '', B ? B.name : ''], ids: this.seats.map(s => (s && s.kind === 'human' ? s.id : null)), matchNo: this.matchNo, why,
     };
     this.record(kind);
     const ms = this.T('next');
@@ -471,7 +472,7 @@ export class M3Table {
       case 'boost': if (mine) act(d.boost(i, cell(m.target))); return;
       case 'perk': if (mine) act(d.perk(i, String(m.kind), cell(m.target))); return;
       case 'booster': {
-        const key = BOOSTERS[m.key] ? m.key : null;
+        const key = own(BOOSTERS, m.key) ? m.key : null;
         if (!key) return;
         if (s) { s.booster = key; this.update(); }
         const r = this.reservations.find(x => x.token === ws.data.token);
@@ -489,7 +490,7 @@ export class M3Table {
       case 'sitOut':
         if (s && !s.away) {
           s.away = true; s.awaySince = Date.now(); this.updateWaiting(); this.update();
-          if (this.live && d.turn === i && d.moves > 0) this.botStep(i, AUTO_ACT);
+          if (this.live && !this.between && d.turn === i && d.moves > 0) this.botStep(i, AUTO_ACT);
         }
         return;
       case 'sync': this.send(ws, this.snapshot(ws)); return;

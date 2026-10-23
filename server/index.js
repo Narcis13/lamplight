@@ -11,7 +11,7 @@
    ════════════════════════════════════════════════════════════════════ */
 import { cleanName, SPEEDS, STAKES, SNG } from '../shared/engine.js';
 import { BG } from '../shared/backgammon.js';
-import { M3 } from '../shared/match3.js';
+import { M3, own } from '../shared/match3.js';
 import { Table } from './table.js';
 import { BgTable } from './bgtable.js';
 import { M3Table } from './m3table.js';
@@ -87,7 +87,7 @@ class Lobby {
     const t = new M3Table(this, {
       id: this.newId(),
       name: opts.builtIn ? String(opts.name) : cleanName(opts.name, 24, `Duel ${this.seq + 1}`),
-      format: opts.format, entry: Number(opts.entry), speed: M3.speeds[speed] ? speed : 'normal', bot: opts.bot !== false,
+      format: opts.format, entry: Number(opts.entry), speed: own(M3.speeds, speed) ? speed : 'normal', bot: opts.bot !== false,
       skill: ['casual', 'regular', 'sharp'].includes(opts.skill) ? opts.skill : 'regular',
       permanent: !!opts.permanent, db,
     });

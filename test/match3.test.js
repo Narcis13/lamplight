@@ -588,3 +588,16 @@ describe('random games', () => {
     }
   });
 });
+
+describe('names from browsers', () => {
+  test("built-in property names are not formats, boosters or perks", () => {
+    const d = new Duel({ format: 'constructor', boosters: ['__proto__', 'toString'], rng: seeded(5) });
+    expect([d.format, d.rounds, d.perTurn]).toEqual(['classic', 5, 2]);
+    expect(d.boosters).toEqual(['ember', 'ember']);
+    const before = snap(d.cells);
+    for (const kind of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) expect(d.perk(d.turn, kind)).toBe(null);
+    expect(snap(d.cells)).toEqual(before);
+    expect(d.perk(d.turn, 'shuffle')).not.toBe(null);
+    expect(d.perk(d.turn, 'shuffle')).toBe(null); // once a match
+  });
+});

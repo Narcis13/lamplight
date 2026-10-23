@@ -42,6 +42,8 @@ export const PERKS = {
   shuffle: { name: 'Shuffle', icon: '⟳', target: false, desc: 'Shuffle the whole board. Once a match.' },
 };
 export const SPECIAL_NAME = { h: 'arrow', v: 'arrow', bomb: 'bomb', bolt: 'lightning' };
+/** Is `k` one of the table's own keys (not 'constructor', '__proto__'...)? Names from browsers go through this. */
+export const own = (table, k) => typeof k === 'string' && Object.hasOwn(table, k);
 
 /* ───────────── pacing ─────────────
    How long the browser takes to play an action back, in ms. The server waits this long before
@@ -382,14 +384,14 @@ function boosterStart(key, cells, target, seat, rng) {
  */
 export class Duel {
   constructor({ format = 'classic', first = 0, boosters = ['ember', 'ember'], rng = n => Math.floor(Math.random() * n), board = null } = {}) {
-    const f = M3.formats[format] || M3.formats.classic;
-    this.format = M3.formats[format] ? format : 'classic';
+    this.format = own(M3.formats, format) ? format : 'classic';
+    const f = M3.formats[this.format];
     this.rounds = f.rounds; this.perTurn = f.moves;
     this.rng = rng;
     this.b = board || newBoard(this.rng);
     this.first = first; this.turn = first; this.round = 1; this.half = 0; this.moves = this.perTurn;
     this.scores = [0, 0]; this.charge = [0, 0];
-    this.boosters = boosters.map(k => (BOOSTERS[k] ? k : 'ember'));
+    this.boosters = boosters.map(k => (own(BOOSTERS, k) ? k : 'ember'));
     this.perks = [{ hammer: true, shuffle: true }, { hammer: true, shuffle: true }];
     this.over = false; this.winner = null; this.landslide = false; this.turnPts = 0;
     this.stats = [0, 1].map(() => ({ specials: 0, combos: 0, extras: 0, boosters: 0, best: 0 }));
@@ -424,7 +426,7 @@ export class Duel {
   }
   /** A perk: the hammer (one piece of your choice) or a shuffle, each once a match. */
   perk(seat, kind, target = null) {
-    if (!this.canAct(seat) || !PERKS[kind] || !this.perks[seat][kind]) return null;
+    if (!this.canAct(seat) || !own(PERKS, kind) || !this.perks[seat][kind]) return null;
     if (kind === 'hammer') {
       if (!(Number.isInteger(target) && target >= 0 && target < N && this.cells[target])) return null;
       this.perks[seat].hammer = false;

@@ -235,6 +235,12 @@ test('a finished match is settled before the next one can start, even if the tab
   expect(t.settling).toBe(true);
   expect(t.timer).toBe(null);
   expect(t.d).toBe(d);
+  // someone sitting down now waits for the result: the bot's match is not theirs
+  const wes = { data: { token: 'wes', pid: null, name: 'Wes' }, send() {} };
+  t.clients.add(wes);
+  expect(t.sit(wes, 1)).toBe(null);
+  expect(t.seats[1].kind).toBe('bot');
+  expect(t.reservations.map(r => r.name)).toEqual(['Wes']);
   t.matchOver();
   expect(t.result.scores).toEqual(d.scores);
   expect(t.settling).toBe(false);
@@ -258,3 +264,15 @@ test('a seat-holding bot steps aside for a person between matches; a third perso
   expect(hal.errors[0]).toMatch(/Both seats are taken/);
   for (const p of [fay, gus, hal]) p.ws.close();
 }, 90000);
+
+test('a duel opened with made-up format, speed and booster names falls back to the real ones', async () => {
+  const kit = player('Kit', { play: false });
+  await kit.ready;
+  const id = await create(kit, { format: 'constructor', speed: '__proto__', entry: 0, bot: true });
+  const t = (await (await fetch(`http://localhost:${PORT}/api/tables`)).json()).find(x => x.id === id);
+  expect([t.format, t.speed, t.rounds]).toEqual(['classic', 'normal', 5]);
+  kit.send({ t: 'join', id, sit: true, booster: 'constructor' });
+  await until(() => kit.seat != null);
+  expect(kit.s.seats[kit.seat].booster).toBe('ember');
+  kit.ws.close();
+});

@@ -215,7 +215,8 @@ function Curtain({ s, me, view, app, m3, nextLeft }) {
   };
   let head = null;
   if (r && s.phase === 'over') {
-    const won = me != null && r.winner === me, lost = me != null && r.loser === me;
+    const mine = me != null && r.ids && r.ids[me] === app.myId; // someone who just took a bot's seat didn't play that match
+    const won = mine && r.winner === me, lost = mine && r.loser === me;
     const title = r.winner === -1 ? 'A draw' : won ? (r.landslide ? 'Landslide!' : 'You win!') : lost ? 'You lose' : `${r.names[r.winner]} wins`;
     const sub = r.kind === 'forfeit' ? (won ? 'Your opponent left the match' : 'Forfeit') : r.landslide && !won && r.winner >= 0 ? 'A landslide' : '';
     head = (
